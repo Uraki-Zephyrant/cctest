@@ -119,6 +119,70 @@ body {
     margin: 5px 0;
 }
 
+/* ホールドエリア */
+.hold-piece {
+    margin-top: 20px;
+    background-color: #2a2a2a;
+    padding: 15px;
+    border-radius: 5px;
+    border: 1px solid #555;
+}
+
+.hold-piece h3 {
+    margin: 0 0 10px 0;
+    color: #ff6b6b;
+    text-align: center;
+    font-size: 16px;
+}
+
+#holdCanvas {
+    display: block;
+    margin: 0 auto;
+    background-color: #111;
+    border: 1px solid #666;
+}
+
+/* NEXT表示エリア */
+.next-pieces {
+    margin-top: 20px;
+    background-color: #2a2a2a;
+    padding: 15px;
+    border-radius: 5px;
+    border: 1px solid #555;
+}
+
+.next-pieces h3 {
+    margin: 0 0 15px 0;
+    color: #4ecdc4;
+    text-align: center;
+    font-size: 16px;
+}
+
+.next-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: center;
+}
+
+.next-list canvas {
+    background-color: #111;
+    border: 1px solid #666;
+    border-radius: 3px;
+}
+
+#next1Canvas {
+    border: 2px solid #4ecdc4;
+}
+
+#next2Canvas, #next3Canvas {
+    opacity: 0.9;
+}
+
+#next4Canvas, #next5Canvas {
+    opacity: 0.7;
+}
+
 /* タイトル画面 */
 .title-screen {
     position: fixed;

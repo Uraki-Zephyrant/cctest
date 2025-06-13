@@ -16,6 +16,7 @@
             <p>↓ : 高速落下</p>
             <p>↑ : 回転</p>
             <p>スペース : ハードドロップ</p>
+            <p>C : ホールド</p>
         </div>
     </div>
 
@@ -27,9 +28,21 @@
             <div class="score">スコア: <span id="score">0</span></div>
             <div class="level">レベル: <span id="level">1</span></div>
             <div class="lines">ライン: <span id="lines">0</span></div>
-            <div class="next-piece">
-                <h3>次のピース</h3>
-                <canvas id="nextCanvas" width="100" height="100"></canvas>
+            
+            <div class="hold-piece">
+                <h3>HOLD</h3>
+                <canvas id="holdCanvas" width="80" height="80"></canvas>
+            </div>
+            
+            <div class="next-pieces">
+                <h3>NEXT</h3>
+                <div class="next-list">
+                    <canvas id="next1Canvas" width="60" height="60"></canvas>
+                    <canvas id="next2Canvas" width="50" height="50"></canvas>
+                    <canvas id="next3Canvas" width="40" height="40"></canvas>
+                    <canvas id="next4Canvas" width="30" height="30"></canvas>
+                    <canvas id="next5Canvas" width="30" height="30"></canvas>
+                </div>
             </div>
             
             <div class="controls">
@@ -38,6 +51,7 @@
                 <p>↓ : 高速落下</p>
                 <p>↑ : 回転</p>
                 <p>スペース : ハードドロップ</p>
+                <p>C : ホールド</p>
             </div>
         </div>
     </div>
@@ -45,6 +59,7 @@
     <script src="tests/test-runner.js"></script>
     <script src="tests/tetris.test.js"></script>
     <script src="tests/title-screen.test.js"></script>
+    <script src="tests/hold-next.test.js"></script>
     <script src="src/game-state.js"></script>
     <script src="src/tetris.js"></script>
     <script src="src/game.js"></script>
