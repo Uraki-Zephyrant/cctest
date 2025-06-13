@@ -32,6 +32,19 @@ class TetrisGame {
         this.dropTime = 0;
         this.dropInterval = 1000; // 1秒
         
+        // ライン消去アニメーション
+        this.lineAnimation = {
+            active: false,
+            lines: [],
+            stage: 'highlight', // 'highlight' -> 'clear' -> 'drop'
+            timer: 0,
+            duration: {
+                highlight: 300,
+                clear: 200,
+                drop: 400
+            }
+        };
+        
         // タイトル画面では初期化しない
         this.currentPiece = null;
         
@@ -201,6 +214,14 @@ class TetrisGame {
             return;
         }
         
+        // ライン消去アニメーション更新
+        this.updateLineAnimation(deltaTime);
+        
+        // アニメーション中は他の処理を停止
+        if (this.lineAnimation.active) {
+            return;
+        }
+        
         // オートプレイ処理
         if (this.modeManager.isAutoplay && this.aiEngine) {
             // 手動介入中はAI処理を一時停止
@@ -320,10 +341,49 @@ class TetrisGame {
         // 完成した行をチェック
         const completedLines = this.board.getCompletedLines();
         if (completedLines.length > 0) {
-            this.clearLines(completedLines.length);
-            this.board.clearLines(completedLines);
+            this.startLineAnimation(completedLines);
+            return; // アニメーション完了後に続行
         }
         
+        this.spawnNextPiece();
+    }
+
+    startLineAnimation(completedLines) {
+        this.lineAnimation.active = true;
+        this.lineAnimation.lines = completedLines;
+        this.lineAnimation.stage = 'highlight';
+        this.lineAnimation.timer = 0;
+    }
+
+    updateLineAnimation(deltaTime) {
+        if (!this.lineAnimation.active) return;
+
+        this.lineAnimation.timer += deltaTime;
+        const currentDuration = this.lineAnimation.duration[this.lineAnimation.stage];
+
+        if (this.lineAnimation.timer >= currentDuration) {
+            this.lineAnimation.timer = 0;
+            
+            switch (this.lineAnimation.stage) {
+                case 'highlight':
+                    this.lineAnimation.stage = 'clear';
+                    break;
+                case 'clear':
+                    // 実際にラインを消去
+                    this.clearLines(this.lineAnimation.lines.length);
+                    this.board.clearLines(this.lineAnimation.lines);
+                    this.lineAnimation.stage = 'drop';
+                    break;
+                case 'drop':
+                    // アニメーション終了
+                    this.lineAnimation.active = false;
+                    this.spawnNextPiece();
+                    break;
+            }
+        }
+    }
+
+    spawnNextPiece() {
         // 次のピースを設定
         this.currentPiece = this.nextQueue.getNext();
         
@@ -417,14 +477,40 @@ class TetrisGame {
         for (let y = 0; y < this.board.height; y++) {
             for (let x = 0; x < this.board.width; x++) {
                 if (this.board.grid[y][x] !== 0) {
-                    this.ctx.fillStyle = '#666';
+                    // ライン消去アニメーション中の行の色を変える
+                    let fillColor = '#666';
+                    let strokeColor = '#fff';
+                    
+                    if (this.lineAnimation.active && this.lineAnimation.lines.includes(y)) {
+                        switch (this.lineAnimation.stage) {
+                            case 'highlight':
+                                // ハイライト：白く光らせる
+                                const progress = this.lineAnimation.timer / this.lineAnimation.duration.highlight;
+                                const intensity = Math.sin(progress * Math.PI * 4) * 0.5 + 0.5;
+                                fillColor = `rgb(${100 + intensity * 155}, ${100 + intensity * 155}, ${100 + intensity * 155})`;
+                                strokeColor = '#ffff00';
+                                break;
+                            case 'clear':
+                                // 消去：透明度を下げる
+                                const fadeProgress = this.lineAnimation.timer / this.lineAnimation.duration.clear;
+                                const alpha = 1 - fadeProgress;
+                                fillColor = `rgba(102, 102, 102, ${alpha})`;
+                                strokeColor = `rgba(255, 255, 255, ${alpha})`;
+                                break;
+                            case 'drop':
+                                // この段階では既に消去済み
+                                continue;
+                        }
+                    }
+                    
+                    this.ctx.fillStyle = fillColor;
                     this.ctx.fillRect(
                         x * this.blockSize,
                         y * this.blockSize,
                         this.blockSize,
                         this.blockSize
                     );
-                    this.ctx.strokeStyle = '#fff';
+                    this.ctx.strokeStyle = strokeColor;
                     this.ctx.strokeRect(
                         x * this.blockSize,
                         y * this.blockSize,
