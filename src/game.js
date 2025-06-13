@@ -1,6 +1,10 @@
 // メインゲームクラス
 class TetrisGame {
     constructor() {
+        // 状態管理
+        this.stateManager = new GameStateManager();
+        this.titleScreen = new TitleScreen();
+        
         this.board = new GameBoard(10, 20);
         this.score = 0;
         this.level = 1;
@@ -16,8 +20,9 @@ class TetrisGame {
         this.dropTime = 0;
         this.dropInterval = 1000; // 1秒
         
-        this.currentPiece = this.getRandomPiece();
-        this.nextPiece = this.getRandomPiece();
+        // タイトル画面では初期化しない
+        this.currentPiece = null;
+        this.nextPiece = null;
         
         this.setupEventListeners();
         this.lastTime = 0;
@@ -27,7 +32,62 @@ class TetrisGame {
         this.levelElement = document.getElementById('level');
         this.linesElement = document.getElementById('lines');
         
+        // タイトル画面のイベント設定
+        this.titleScreen.onGameStart = () => this.startGame();
+        
         this.updateDisplay();
+    }
+
+    startGame() {
+        this.stateManager.setState('playing');
+        this.titleScreen.hide();
+        
+        // ゲーム状態をリセット
+        this.board.clear();
+        this.score = 0;
+        this.level = 1;
+        this.lines = 0;
+        this.gameOver = false;
+        this.dropTime = 0;
+        this.dropInterval = 1000;
+        
+        // ピースを初期化
+        this.currentPiece = this.getRandomPiece();
+        this.nextPiece = this.getRandomPiece();
+        
+        this.updateDisplay();
+        this.draw();
+    }
+
+    endGame() {
+        this.stateManager.setState('gameOver');
+        this.gameOver = true;
+        this.showGameOver();
+    }
+
+    returnToTitle() {
+        this.stateManager.setState('title');
+        this.titleScreen.show();
+        this.gameOver = false;
+        
+        // ゲームオーバー画面を削除
+        const overlay = document.querySelector('.game-over-overlay');
+        if (overlay) {
+            overlay.remove();
+        }
+    }
+
+    update(deltaTime) {
+        // タイトル画面では更新しない
+        if (!this.stateManager.isPlaying()) {
+            return;
+        }
+        
+        this.dropTime += deltaTime;
+        if (this.dropTime > this.dropInterval) {
+            this.movePieceDown();
+            this.dropTime = 0;
+        }
     }
 
     getRandomPiece() {
@@ -38,7 +98,15 @@ class TetrisGame {
 
     setupEventListeners() {
         document.addEventListener('keydown', (event) => {
-            if (this.gameOver) return;
+            // タイトル画面での操作
+            if (this.stateManager.isTitle()) {
+                this.titleScreen.handleKeyPress(event.code);
+                event.preventDefault();
+                return;
+            }
+            
+            // ゲーム中の操作
+            if (!this.stateManager.isPlaying()) return;
             
             switch(event.code) {
                 case 'ArrowLeft':
@@ -118,8 +186,7 @@ class TetrisGame {
         
         // ゲームオーバーチェック
         if (!this.board.isValidPosition(this.currentPiece, this.currentPiece.x, this.currentPiece.y)) {
-            this.gameOver = true;
-            this.showGameOver();
+            this.endGame();
         }
         
         this.updateDisplay();
@@ -154,10 +221,21 @@ class TetrisGame {
                 <p>スコア: ${this.score}</p>
                 <p>レベル: ${this.level}</p>
                 <p>ライン: ${this.lines}</p>
-                <button onclick="location.reload()">もう一度プレイ</button>
+                <button id="restartButton">もう一度プレイ</button>
+                <button id="titleButton">タイトルに戻る</button>
             </div>
         `;
         document.body.appendChild(overlay);
+        
+        // イベントリスナーを追加
+        document.getElementById('restartButton').addEventListener('click', () => {
+            overlay.remove();
+            this.startGame();
+        });
+        
+        document.getElementById('titleButton').addEventListener('click', () => {
+            this.returnToTitle();
+        });
     }
 
     draw() {
@@ -165,14 +243,23 @@ class TetrisGame {
         this.ctx.fillStyle = '#000';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         
-        // ボードを描画
-        this.drawBoard();
-        
-        // 現在のピースを描画
-        this.drawPiece(this.ctx, this.currentPiece, this.currentPiece.x, this.currentPiece.y);
-        
-        // 次のピースを描画
-        this.drawNextPiece();
+        // ゲーム中のみ描画
+        if (this.stateManager.isPlaying() && this.currentPiece) {
+            // ボードを描画
+            this.drawBoard();
+            
+            // 現在のピースを描画
+            this.drawPiece(this.ctx, this.currentPiece, this.currentPiece.x, this.currentPiece.y);
+            
+            // 次のピースを描画
+            if (this.nextPiece) {
+                this.drawNextPiece();
+            }
+        } else {
+            // 次のピースキャンバスもクリア
+            this.nextCtx.fillStyle = '#111';
+            this.nextCtx.fillRect(0, 0, this.nextCanvas.width, this.nextCanvas.height);
+        }
     }
 
     drawBoard() {
@@ -251,22 +338,21 @@ class TetrisGame {
     }
 
     gameLoop(time) {
-        if (this.gameOver) return;
-        
         const deltaTime = time - this.lastTime;
         this.lastTime = time;
         
-        this.dropTime += deltaTime;
-        if (this.dropTime > this.dropInterval) {
-            this.movePieceDown();
-            this.dropTime = 0;
+        // 状態に応じた処理
+        if (this.stateManager.isPlaying()) {
+            this.update(deltaTime);
+            this.draw();
         }
         
         requestAnimationFrame((time) => this.gameLoop(time));
     }
 
     start() {
-        this.draw();
+        // 初期はタイトル画面を表示
+        this.titleScreen.show();
         requestAnimationFrame((time) => this.gameLoop(time));
     }
 }
