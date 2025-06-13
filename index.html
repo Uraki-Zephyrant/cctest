@@ -11,12 +11,35 @@
     <div id="titleScreen" class="title-screen">
         <h1>TETRIS</h1>
         <div class="subtitle">Press SPACE to Start</div>
+        
+        <div class="game-mode-selector">
+            <h3>ゲームモード</h3>
+            <div class="mode-buttons">
+                <button id="manualModeBtn" class="mode-btn active">手動プレイ</button>
+                <button id="autoModeBtn" class="mode-btn">オートプレイ</button>
+            </div>
+            <div id="autoplaySettings" class="autoplay-settings hidden">
+                <label>AI難易度:</label>
+                <select id="aiDifficulty">
+                    <option value="easy">簡単</option>
+                    <option value="normal" selected>普通</option>
+                    <option value="hard">難しい</option>
+                    <option value="expert">エキスパート</option>
+                </select>
+                <label>プレイ速度:</label>
+                <input type="range" id="autoplaySpeed" min="0.2" max="5.0" step="0.1" value="1.0">
+                <span id="speedDisplay">1.0x</span>
+            </div>
+        </div>
+        
         <div class="instructions">
+            <h4>操作方法</h4>
             <p>← → : 左右移動</p>
             <p>↓ : 高速落下</p>
             <p>↑ : 回転</p>
             <p>スペース : ハードドロップ</p>
             <p>C : ホールド</p>
+            <p id="autoModeInstructions" class="hidden">ESC : 手動介入</p>
         </div>
     </div>
 
@@ -69,6 +92,7 @@
     <script src="tests/title-screen.test.js"></script>
     <script src="tests/hold-next.test.js"></script>
     <script src="tests/advanced-techniques.test.js"></script>
+    <script src="tests/autoplay.test.js"></script>
     <script src="src/game-state.js"></script>
     <script src="src/hold-next.js"></script>
     <script src="src/advanced-techniques.js"></script>
