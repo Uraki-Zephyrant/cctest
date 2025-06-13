@@ -4,8 +4,10 @@ class Tetromino {
         this.type = type;
         this.x = 3; // 初期x位置
         this.y = 0; // 初期y位置
+        this.rotation = 0; // 回転状態（0-3）
         this.shape = this.getShape(type);
         this.color = this.getColor(type);
+        this.lastRotatedInto = false; // T-Spin判定用
     }
 
     getShape(type) {
@@ -75,6 +77,8 @@ class Tetromino {
         }
         
         this.shape = newShape;
+        this.rotation = (this.rotation + 1) % 4;
+        this.lastRotatedInto = true;
     }
 
     // ピースのコピーを作成
@@ -82,6 +86,8 @@ class Tetromino {
         const copy = new Tetromino(this.type);
         copy.x = this.x;
         copy.y = this.y;
+        copy.rotation = this.rotation;
+        copy.lastRotatedInto = this.lastRotatedInto;
         copy.shape = this.shape.map(row => [...row]);
         return copy;
     }
