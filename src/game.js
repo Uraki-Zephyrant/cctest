@@ -338,6 +338,9 @@ class TetrisGame {
     placePiece() {
         this.board.placePiece(this.currentPiece);
         
+        // ピースを配置したので現在のピースを無効化
+        this.currentPiece = null;
+        
         // 完成した行をチェック
         const completedLines = this.board.getCompletedLines();
         if (completedLines.length > 0) {
@@ -381,6 +384,9 @@ class TetrisGame {
                     break;
             }
         }
+        
+        // アニメーション中は常に描画更新
+        this.draw();
     }
 
     spawnNextPiece() {
@@ -457,12 +463,14 @@ class TetrisGame {
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         
         // ゲーム中のみ描画
-        if (this.stateManager.isPlaying() && this.currentPiece) {
+        if (this.stateManager.isPlaying()) {
             // ボードを描画
             this.drawBoard();
             
-            // 現在のピースを描画
-            this.drawPiece(this.ctx, this.currentPiece, this.currentPiece.x, this.currentPiece.y);
+            // 現在のピースを描画（存在する場合のみ）
+            if (this.currentPiece) {
+                this.drawPiece(this.ctx, this.currentPiece, this.currentPiece.x, this.currentPiece.y);
+            }
             
             // ホールド・NEXT表示を描画
             this.drawHold();
