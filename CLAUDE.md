@@ -5,6 +5,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # プロジェクト概要
 このプロジェクトは...
 
+## Conversation Guidelines
+
+- 常に日本語で会話する
+
 ## 知見管理システム
 このプロジェクトでは以下のファイルで知見を体系的に管理しています：
 
