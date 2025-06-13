@@ -64,11 +64,14 @@ class TetrisAI {
         }
 
         this.lastThinkTime = Date.now() - startTime;
+        const dangerLevel = this.getDangerLevel(board);
         this.debugInfo = {
             evaluatedMoves: evaluatedMoves,
             bestMove: bestMove,
             bestScore: bestScore,
-            thinkTime: this.lastThinkTime
+            thinkTime: this.lastThinkTime,
+            dangerLevel: dangerLevel,
+            survivalMode: dangerLevel > 0.3
         };
 
         return bestMove || { x: piece.x, rotation: 0, score: 0 };
@@ -139,6 +142,47 @@ class TetrisAI {
         return evaluator.evaluateBoard(board);
     }
 
+    getDangerLevel(board) {
+        // ピンチレベルを0-1で評価（1が最も危険）
+        let maxHeight = 0;
+        let totalHeight = 0;
+        let holes = 0;
+        
+        for (let x = 0; x < board.width; x++) {
+            const columnHeight = this.getColumnHeight(board, x);
+            maxHeight = Math.max(maxHeight, columnHeight);
+            totalHeight += columnHeight;
+        }
+        
+        // 穴の数をカウント
+        for (let x = 0; x < board.width; x++) {
+            let blockFound = false;
+            for (let y = 0; y < board.height; y++) {
+                if (board.grid[y][x] !== 0) {
+                    blockFound = true;
+                } else if (blockFound) {
+                    holes++;
+                }
+            }
+        }
+        
+        // 危険度計算
+        const heightDanger = Math.min(1, maxHeight / (board.height * 0.7)); // 高さ70%以上で危険
+        const averageHeightDanger = Math.min(1, (totalHeight / board.width) / (board.height * 0.5));
+        const holeDanger = Math.min(1, holes / 10); // 10個以上の穴で最大危険
+        
+        return Math.max(heightDanger, averageHeightDanger * 0.7, holeDanger * 0.5);
+    }
+
+    getColumnHeight(board, x) {
+        for (let y = 0; y < board.height; y++) {
+            if (board.grid[y][x] !== 0) {
+                return board.height - y;
+            }
+        }
+        return 0;
+    }
+
     calculateLookAheadScore(board, nextPieces, depth) {
         if (depth <= 0 || nextPieces.length === 0) {
             return 0;
@@ -162,10 +206,21 @@ class TetrisAI {
     shouldHold(board, currentPiece, holdPiece) {
         if (!this.useHold || !holdPiece) return false;
         
+        const dangerLevel = this.getDangerLevel(board);
         const currentBest = this.calculateBestMove(board, currentPiece);
         const holdBest = this.calculateBestMove(board, holdPiece);
         
-        return holdBest.score > currentBest.score + 50; // ある程度の差があればホールド
+        // ピンチ時のホールド戦略調整
+        let holdThreshold = 50;
+        if (dangerLevel > 0.3) {
+            // ピンチ時: より慎重にホールド判断（より大きな差が必要）
+            holdThreshold = 100 + (dangerLevel * 100);
+        } else {
+            // 平常時: 積極的にホールド（小さな差でもホールド）
+            holdThreshold = 30;
+        }
+        
+        return holdBest.score > currentBest.score + holdThreshold;
     }
 
     calculateWithLookahead(board, pieces, depth) {
@@ -218,19 +273,50 @@ class BoardEvaluator {
         const tSpinBonus = this.calculateTSpinSetupBonus(board);
         const perfectClearBonus = this.calculatePerfectClearBonus(board);
         
-        // 難易度に応じた重み調整
+        // ピンチ状況に応じた重み調整
+        let dangerLevel = 0;
+        if (this.ai) {
+            dangerLevel = this.ai.getDangerLevel(board);
+        }
+        
+        // ピンチ時の重み変化（0: 平常時、1: 最大ピンチ）
+        const survivalMode = dangerLevel > 0.3; // 30%以上の危険度で生存モード
+        
+        let heightWeight = this.weights.height;
+        let holeWeight = this.weights.holes;
+        let bumpinessWeight = this.weights.bumpiness;
+        let lineWeight = this.weights.lines;
         let tSpinWeight = this.weights.tSpinSetup;
         let perfectClearWeight = 0;
         
         if (this.ai) {
+            // 難易度に応じた基本重み
             tSpinWeight *= (this.ai.tSpinPriority || 0);
             perfectClearWeight = this.ai.perfectClearPriority || 0;
+            
+            if (survivalMode) {
+                // ピンチ時: 生存重視
+                const panicMultiplier = 1 + dangerLevel * 2; // 最大3倍のペナルティ
+                heightWeight *= panicMultiplier;
+                holeWeight *= panicMultiplier;
+                bumpinessWeight *= panicMultiplier;
+                
+                // 高スコア狙いを抑制
+                tSpinWeight *= Math.max(0.1, 1 - dangerLevel); // 危険度に応じて減少
+                perfectClearWeight *= Math.max(0.1, 1 - dangerLevel);
+                
+                // ライン消去を優先（即座にフィールドをクリア）
+                lineWeight *= 1.5 + dangerLevel;
+            } else {
+                // 平常時: 高スコア狙い
+                lineWeight *= 1.2; // 通常より少し高めのライン消去ボーナス
+            }
         }
         
-        return (heightPenalty * this.weights.height) +
-               (holePenalty * this.weights.holes) +
-               (bumpinessPenalty * this.weights.bumpiness) +
-               (lineBonus * this.weights.lines) +
+        return (heightPenalty * heightWeight) +
+               (holePenalty * holeWeight) +
+               (bumpinessPenalty * bumpinessWeight) +
+               (lineBonus * lineWeight) +
                (tSpinBonus * tSpinWeight) +
                (perfectClearBonus * perfectClearWeight);
     }
