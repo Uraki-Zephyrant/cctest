@@ -42,6 +42,12 @@ class TetrisGame {
                 highlight: 300,
                 clear: 200,
                 drop: 400
+            },
+            // 落下アニメーション用
+            dropAnimation: {
+                beforeBoard: null, // 消去前のボード状態
+                afterBoard: null,  // 消去後のボード状態
+                progress: 0        // 落下進行度 (0-1)
             }
         };
         
@@ -356,6 +362,21 @@ class TetrisGame {
         this.lineAnimation.lines = completedLines;
         this.lineAnimation.stage = 'highlight';
         this.lineAnimation.timer = 0;
+        
+        // 落下アニメーション用にボード状態を保存
+        this.lineAnimation.dropAnimation.beforeBoard = this.copyBoardState();
+        this.lineAnimation.dropAnimation.progress = 0;
+    }
+
+    copyBoardState() {
+        const copy = [];
+        for (let y = 0; y < this.board.height; y++) {
+            copy[y] = [];
+            for (let x = 0; x < this.board.width; x++) {
+                copy[y][x] = this.board.grid[y][x];
+            }
+        }
+        return copy;
     }
 
     updateLineAnimation(deltaTime) {
@@ -372,15 +393,22 @@ class TetrisGame {
                     this.lineAnimation.stage = 'clear';
                     break;
                 case 'clear':
-                    // 実際にラインを消去
+                    // 実際にラインを消去してアフター状態を保存
                     this.clearLines(this.lineAnimation.lines.length);
                     this.board.clearLines(this.lineAnimation.lines);
+                    this.lineAnimation.dropAnimation.afterBoard = this.copyBoardState();
                     this.lineAnimation.stage = 'drop';
                     break;
                 case 'drop':
-                    // アニメーション終了
-                    this.lineAnimation.active = false;
-                    this.spawnNextPiece();
+                    // 落下アニメーション進行度を更新
+                    this.lineAnimation.dropAnimation.progress = 
+                        this.lineAnimation.timer / this.lineAnimation.duration.drop;
+                    
+                    if (this.lineAnimation.dropAnimation.progress >= 1.0) {
+                        // アニメーション終了
+                        this.lineAnimation.active = false;
+                        this.spawnNextPiece();
+                    }
                     break;
             }
         }
@@ -482,6 +510,12 @@ class TetrisGame {
     }
 
     drawBoard() {
+        // 落下アニメーション中は特別な描画
+        if (this.lineAnimation.active && this.lineAnimation.stage === 'drop') {
+            this.drawDropAnimation();
+            return;
+        }
+        
         for (let y = 0; y < this.board.height; y++) {
             for (let x = 0; x < this.board.width; x++) {
                 if (this.board.grid[y][x] !== 0) {
@@ -505,9 +539,6 @@ class TetrisGame {
                                 fillColor = `rgba(102, 102, 102, ${alpha})`;
                                 strokeColor = `rgba(255, 255, 255, ${alpha})`;
                                 break;
-                            case 'drop':
-                                // この段階では既に消去済み
-                                continue;
                         }
                     }
                     
@@ -525,6 +556,68 @@ class TetrisGame {
                         this.blockSize,
                         this.blockSize
                     );
+                }
+            }
+        }
+    }
+
+    drawDropAnimation() {
+        const beforeBoard = this.lineAnimation.dropAnimation.beforeBoard;
+        const afterBoard = this.lineAnimation.dropAnimation.afterBoard;
+        const progress = this.lineAnimation.dropAnimation.progress;
+        const completedLines = this.lineAnimation.lines;
+        
+        if (!beforeBoard || !afterBoard) return;
+        
+        // 消去されたライン数を計算
+        const numLinesCleared = completedLines.length;
+        
+        for (let y = 0; y < this.board.height; y++) {
+            for (let x = 0; x < this.board.width; x++) {
+                // 消去前の状態でブロックが存在し、消去ラインに含まれない場合
+                if (beforeBoard[y][x] !== 0 && !completedLines.includes(y)) {
+                    // 落下アニメーション：消去ライン数分下に移動
+                    const targetY = y + numLinesCleared;
+                    
+                    // 現在の表示位置を計算（線形補間）
+                    const currentY = y + (numLinesCleared * progress);
+                    
+                    this.ctx.fillStyle = '#666';
+                    this.ctx.fillRect(
+                        x * this.blockSize,
+                        currentY * this.blockSize,
+                        this.blockSize,
+                        this.blockSize
+                    );
+                    this.ctx.strokeStyle = '#fff';
+                    this.ctx.strokeRect(
+                        x * this.blockSize,
+                        currentY * this.blockSize,
+                        this.blockSize,
+                        this.blockSize
+                    );
+                }
+                
+                // 最終位置に到達済みのブロック（消去ライン以下の部分）も描画
+                if (afterBoard[y][x] !== 0) {
+                    // 消去ライン以下の部分は影響を受けない
+                    const isInClearedArea = completedLines.some(clearedLine => y <= clearedLine);
+                    if (!isInClearedArea) {
+                        this.ctx.fillStyle = '#666';
+                        this.ctx.fillRect(
+                            x * this.blockSize,
+                            y * this.blockSize,
+                            this.blockSize,
+                            this.blockSize
+                        );
+                        this.ctx.strokeStyle = '#fff';
+                        this.ctx.strokeRect(
+                            x * this.blockSize,
+                            y * this.blockSize,
+                            this.blockSize,
+                            this.blockSize
+                        );
+                    }
                 }
             }
         }
