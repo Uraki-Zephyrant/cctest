@@ -1,0 +1,120 @@
+body {
+    margin: 0;
+    padding: 20px;
+    background-color: #222;
+    color: white;
+    font-family: 'Arial', sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+}
+
+.container {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+}
+
+.game-area {
+    border: 2px solid #fff;
+    background-color: #000;
+}
+
+#gameCanvas {
+    display: block;
+    background-color: #000;
+}
+
+.info-panel {
+    min-width: 200px;
+    background-color: #333;
+    padding: 20px;
+    border-radius: 8px;
+    border: 2px solid #555;
+}
+
+.info-panel div {
+    margin-bottom: 15px;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.score, .level, .lines {
+    color: #4CAF50;
+}
+
+.next-piece {
+    margin-top: 30px;
+}
+
+.next-piece h3 {
+    margin: 0 0 10px 0;
+    color: #fff;
+    text-align: center;
+}
+
+#nextCanvas {
+    display: block;
+    margin: 0 auto;
+    border: 1px solid #666;
+    background-color: #111;
+}
+
+/* ゲームオーバー時のオーバーレイ */
+.game-over-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.game-over-message {
+    background-color: #333;
+    padding: 40px;
+    border-radius: 10px;
+    text-align: center;
+    border: 2px solid #666;
+}
+
+.game-over-message h2 {
+    color: #ff4444;
+    margin-top: 0;
+}
+
+.game-over-message button {
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    font-size: 16px;
+    border-radius: 5px;
+    cursor: pointer;
+    margin-top: 20px;
+}
+
+.game-over-message button:hover {
+    background-color: #45a049;
+}
+
+/* 操作説明 */
+.controls {
+    margin-top: 30px;
+    font-size: 14px;
+    color: #aaa;
+}
+
+.controls h4 {
+    color: #fff;
+    margin-bottom: 10px;
+}
+
+.controls p {
+    margin: 5px 0;
+}
