@@ -14,15 +14,27 @@ class TetrisAI {
         switch (difficulty) {
             case 'easy':
                 this.lookAheadDepth = 1;
+                this.useHold = false;
+                this.tSpinPriority = 0;
+                this.perfectClearPriority = 0;
                 break;
             case 'normal':
                 this.lookAheadDepth = 2;
+                this.useHold = true;
+                this.tSpinPriority = 0.3;
+                this.perfectClearPriority = 0.1;
                 break;
             case 'hard':
                 this.lookAheadDepth = 3;
+                this.useHold = true;
+                this.tSpinPriority = 0.7;
+                this.perfectClearPriority = 0.4;
                 break;
             case 'expert':
                 this.lookAheadDepth = 4;
+                this.useHold = true;
+                this.tSpinPriority = 1.0;
+                this.perfectClearPriority = 0.8;
                 break;
         }
     }
@@ -123,7 +135,7 @@ class TetrisAI {
     }
 
     evaluateBoard(board) {
-        const evaluator = new BoardEvaluator();
+        const evaluator = new BoardEvaluator(this);
         return evaluator.evaluateBoard(board);
     }
 
@@ -148,7 +160,7 @@ class TetrisAI {
     }
 
     shouldHold(board, currentPiece, holdPiece) {
-        if (!holdPiece) return false;
+        if (!this.useHold || !holdPiece) return false;
         
         const currentBest = this.calculateBestMove(board, currentPiece);
         const holdBest = this.calculateBestMove(board, holdPiece);
@@ -187,7 +199,8 @@ class TetrisAI {
 
 // ボード評価クラス
 class BoardEvaluator {
-    constructor() {
+    constructor(ai = null) {
+        this.ai = ai;
         this.weights = {
             height: -0.5,
             lines: 0.8,
@@ -203,12 +216,23 @@ class BoardEvaluator {
         const bumpinessPenalty = this.calculateBumpinessPenalty(board);
         const lineBonus = this.calculateLineBonus(board);
         const tSpinBonus = this.calculateTSpinSetupBonus(board);
+        const perfectClearBonus = this.calculatePerfectClearBonus(board);
+        
+        // 難易度に応じた重み調整
+        let tSpinWeight = this.weights.tSpinSetup;
+        let perfectClearWeight = 0;
+        
+        if (this.ai) {
+            tSpinWeight *= (this.ai.tSpinPriority || 0);
+            perfectClearWeight = this.ai.perfectClearPriority || 0;
+        }
         
         return (heightPenalty * this.weights.height) +
                (holePenalty * this.weights.holes) +
                (bumpinessPenalty * this.weights.bumpiness) +
                (lineBonus * this.weights.lines) +
-               (tSpinBonus * this.weights.tSpinSetup);
+               (tSpinBonus * tSpinWeight) +
+               (perfectClearBonus * perfectClearWeight);
     }
 
     calculateHeightPenalty(board) {
@@ -271,6 +295,34 @@ class BoardEvaluator {
         }
         
         return setupCount;
+    }
+
+    calculatePerfectClearBonus(board) {
+        // Perfect Clear（全消し）の可能性を評価
+        let totalBlocks = 0;
+        let filledRows = 0;
+        
+        for (let y = board.height - 1; y >= 0; y--) {
+            let rowBlocks = 0;
+            for (let x = 0; x < board.width; x++) {
+                if (board.grid[y][x] !== 0) {
+                    totalBlocks++;
+                    rowBlocks++;
+                }
+            }
+            if (rowBlocks > 0) {
+                filledRows++;
+            } else {
+                break; // 空行に到達したら終了
+            }
+        }
+        
+        // ブロック数が少なく、整理されている場合にボーナス
+        if (totalBlocks <= 20 && filledRows <= 4) {
+            return 100 - totalBlocks; // ブロック数が少ないほど高評価
+        }
+        
+        return 0;
     }
 
     isTSpinSetup(board, x, y) {
