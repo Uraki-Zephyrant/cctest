@@ -82,7 +82,7 @@ class TetrisGame {
             this.aiEngine = new TetrisAI();
             this.aiEngine.setDifficulty(options.difficulty || 'normal');
             this.modeManager.setAutoplaySpeed(options.speed || 1.0);
-            this.aiThinkInterval = Math.max(100, 1000 / this.modeManager.autoplaySpeed);
+            this.aiThinkInterval = Math.max(50, 200 / this.modeManager.autoplaySpeed);
             this.lastAIAction = Date.now();
         }
         
@@ -214,11 +214,8 @@ class TetrisGame {
         
         this.dropTime += deltaTime;
         if (this.dropTime > this.dropInterval) {
-            // オートプレイ中は自動落下を無効化（AIが制御）
-            if (!this.modeManager.isAutoplay) {
-                this.movePieceDown();
-                this.dropTime = 0;
-            }
+            this.movePieceDown();
+            this.dropTime = 0;
         }
     }
 
@@ -333,6 +330,11 @@ class TetrisGame {
         // ホールド可能にする
         if (this.holdManager) {
             this.holdManager.enableHold();
+        }
+        
+        // オートプレイ時は新しいピースでAIアクションをリセット
+        if (this.modeManager.isAutoplay) {
+            this.lastAIAction = Date.now() - this.aiThinkInterval; // 即座に実行
         }
         
         // ゲームオーバーチェック
