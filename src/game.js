@@ -43,13 +43,20 @@ class TetrisGame {
         this.levelElement = document.getElementById('level');
         this.linesElement = document.getElementById('lines');
         
+        // オートプレイ関連
+        this.modeManager = new GameModeManager();
+        this.aiEngine = null;
+        this.aiThinkInterval = 1000;
+        this.lastAIAction = 0;
+        this.debugMode = false;
+        
         // タイトル画面のイベント設定
-        this.titleScreen.onGameStart = () => this.startGame();
+        this.titleScreen.onGameStart = (mode, options) => this.startGame(mode, options);
         
         this.updateDisplay();
     }
 
-    startGame() {
+    startGame(mode = 'manual', options = {}) {
         this.stateManager.setState('playing');
         this.titleScreen.hide();
         
@@ -68,6 +75,16 @@ class TetrisGame {
         
         // ピースを初期化
         this.currentPiece = this.nextQueue.getNext();
+        
+        // オートプレイ設定
+        this.modeManager.setMode(mode);
+        if (mode === 'autoplay') {
+            this.aiEngine = new TetrisAI();
+            this.aiEngine.setDifficulty(options.difficulty || 'normal');
+            this.modeManager.setAutoplaySpeed(options.speed || 1.0);
+            this.aiThinkInterval = Math.max(100, 1000 / this.modeManager.autoplaySpeed);
+            this.lastAIAction = Date.now();
+        }
         
         this.updateDisplay();
         this.draw();
@@ -90,6 +107,64 @@ class TetrisGame {
         }
         
         this.draw();
+    }
+
+    executeAIMove() {
+        if (!this.aiEngine || !this.modeManager.isAutoplay || !this.currentPiece) {
+            return;
+        }
+
+        // 次の数ピースを取得
+        const nextPieces = this.getNextPieces(this.aiEngine.lookAheadDepth);
+        
+        // ホールド判定
+        if (this.holdManager && this.holdManager.canHold) {
+            const shouldHold = this.aiEngine.shouldHold(
+                this.board, 
+                this.currentPiece, 
+                this.holdManager.heldPiece
+            );
+            
+            if (shouldHold) {
+                this.holdCurrentPiece();
+                return;
+            }
+        }
+        
+        // 最適な移動を計算
+        const bestMove = this.aiEngine.calculateBestMove(this.board, this.currentPiece, nextPieces);
+        
+        // 移動を実行
+        this.executeMoveSequence(bestMove);
+        
+        this.lastAIAction = Date.now();
+    }
+
+    executeMoveSequence(move) {
+        // 回転
+        for (let r = 0; r < move.rotation; r++) {
+            this.rotatePiece();
+        }
+        
+        // 横移動
+        const targetX = move.x;
+        const currentX = this.currentPiece.x;
+        const moveDistance = targetX - currentX;
+        
+        for (let i = 0; i < Math.abs(moveDistance); i++) {
+            if (moveDistance > 0) {
+                this.movePieceRight();
+            } else {
+                this.movePieceLeft();
+            }
+        }
+        
+        // ハードドロップ
+        this.hardDrop();
+    }
+
+    setDebugMode(enabled) {
+        this.debugMode = enabled;
     }
 
     getNextPieces(count) {
@@ -126,10 +201,24 @@ class TetrisGame {
             return;
         }
         
+        // オートプレイ処理
+        if (this.modeManager.isAutoplay && this.aiEngine) {
+            // 手動介入中はAI処理を一時停止
+            if (!this.modeManager.isManualInterventionRecent()) {
+                const timeSinceLastAI = Date.now() - this.lastAIAction;
+                if (timeSinceLastAI > this.aiThinkInterval) {
+                    this.executeAIMove();
+                }
+            }
+        }
+        
         this.dropTime += deltaTime;
         if (this.dropTime > this.dropInterval) {
-            this.movePieceDown();
-            this.dropTime = 0;
+            // オートプレイ中は自動落下を無効化（AIが制御）
+            if (!this.modeManager.isAutoplay) {
+                this.movePieceDown();
+                this.dropTime = 0;
+            }
         }
     }
 
@@ -150,6 +239,18 @@ class TetrisGame {
             
             // ゲーム中の操作
             if (!this.stateManager.isPlaying()) return;
+            
+            // ESCキーでの手動介入
+            if (event.code === 'Escape' && this.modeManager.isAutoplay) {
+                this.modeManager.triggerManualIntervention();
+                event.preventDefault();
+                return;
+            }
+            
+            // オートプレイ中の手動介入
+            if (this.modeManager.isAutoplay && this.modeManager.allowManualIntervention) {
+                this.modeManager.triggerManualIntervention();
+            }
             
             switch(event.code) {
                 case 'ArrowLeft':
