@@ -386,10 +386,9 @@ class TetrisGame {
         const currentDuration = this.lineAnimation.duration[this.lineAnimation.stage];
 
         if (this.lineAnimation.timer >= currentDuration) {
-            this.lineAnimation.timer = 0;
-            
             switch (this.lineAnimation.stage) {
                 case 'highlight':
+                    this.lineAnimation.timer = 0;
                     this.lineAnimation.stage = 'clear';
                     break;
                 case 'clear':
@@ -397,20 +396,21 @@ class TetrisGame {
                     this.clearLines(this.lineAnimation.lines.length);
                     this.board.clearLines(this.lineAnimation.lines);
                     this.lineAnimation.dropAnimation.afterBoard = this.copyBoardState();
+                    this.lineAnimation.timer = 0; // dropステージ用にリセット
                     this.lineAnimation.stage = 'drop';
                     break;
                 case 'drop':
-                    // 落下アニメーション進行度を更新
-                    this.lineAnimation.dropAnimation.progress = 
-                        this.lineAnimation.timer / this.lineAnimation.duration.drop;
-                    
-                    if (this.lineAnimation.dropAnimation.progress >= 1.0) {
-                        // アニメーション終了
-                        this.lineAnimation.active = false;
-                        this.spawnNextPiece();
-                    }
+                    // アニメーション終了
+                    this.lineAnimation.active = false;
+                    this.spawnNextPiece();
                     break;
             }
+        }
+        
+        // drop段階では進行度を常に更新
+        if (this.lineAnimation.stage === 'drop') {
+            this.lineAnimation.dropAnimation.progress = 
+                Math.min(1.0, this.lineAnimation.timer / this.lineAnimation.duration.drop);
         }
         
         // アニメーション中は常に描画更新
@@ -569,16 +569,14 @@ class TetrisGame {
         
         if (!beforeBoard || !afterBoard) return;
         
-        // 消去されたライン数を計算
+        // 最も下の消去ラインを見つける
+        const lowestClearedLine = Math.max(...completedLines);
         const numLinesCleared = completedLines.length;
         
         for (let y = 0; y < this.board.height; y++) {
             for (let x = 0; x < this.board.width; x++) {
-                // 消去前の状態でブロックが存在し、消去ラインに含まれない場合
-                if (beforeBoard[y][x] !== 0 && !completedLines.includes(y)) {
-                    // 落下アニメーション：消去ライン数分下に移動
-                    const targetY = y + numLinesCleared;
-                    
+                // 消去ライン以上にあったブロックを落下アニメーション
+                if (beforeBoard[y][x] !== 0 && y < lowestClearedLine && !completedLines.includes(y)) {
                     // 現在の表示位置を計算（線形補間）
                     const currentY = y + (numLinesCleared * progress);
                     
@@ -598,26 +596,22 @@ class TetrisGame {
                     );
                 }
                 
-                // 最終位置に到達済みのブロック（消去ライン以下の部分）も描画
-                if (afterBoard[y][x] !== 0) {
-                    // 消去ライン以下の部分は影響を受けない
-                    const isInClearedArea = completedLines.some(clearedLine => y <= clearedLine);
-                    if (!isInClearedArea) {
-                        this.ctx.fillStyle = '#666';
-                        this.ctx.fillRect(
-                            x * this.blockSize,
-                            y * this.blockSize,
-                            this.blockSize,
-                            this.blockSize
-                        );
-                        this.ctx.strokeStyle = '#fff';
-                        this.ctx.strokeRect(
-                            x * this.blockSize,
-                            y * this.blockSize,
-                            this.blockSize,
-                            this.blockSize
-                        );
-                    }
+                // 消去ライン以下の固定部分を描画
+                if (y > lowestClearedLine && beforeBoard[y][x] !== 0) {
+                    this.ctx.fillStyle = '#666';
+                    this.ctx.fillRect(
+                        x * this.blockSize,
+                        y * this.blockSize,
+                        this.blockSize,
+                        this.blockSize
+                    );
+                    this.ctx.strokeStyle = '#fff';
+                    this.ctx.strokeRect(
+                        x * this.blockSize,
+                        y * this.blockSize,
+                        this.blockSize,
+                        this.blockSize
+                    );
                 }
             }
         }
