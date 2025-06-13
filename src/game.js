@@ -41,7 +41,7 @@ class TetrisGame {
             duration: {
                 highlight: 300,
                 clear: 200,
-                drop: 400
+                drop: 133  // 400ms ÷ 3 ≈ 133ms
             },
             // 落下アニメーション用
             dropAnimation: {
