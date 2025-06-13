@@ -7,6 +7,18 @@
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+    <!-- タイトル画面 -->
+    <div id="titleScreen" class="title-screen">
+        <h1>TETRIS</h1>
+        <div class="subtitle">Press SPACE to Start</div>
+        <div class="instructions">
+            <p>← → : 左右移動</p>
+            <p>↓ : 高速落下</p>
+            <p>↑ : 回転</p>
+            <p>スペース : ハードドロップ</p>
+        </div>
+    </div>
+
     <div class="container">
         <div class="game-area">
             <canvas id="gameCanvas" width="300" height="600"></canvas>
@@ -32,6 +44,7 @@
     
     <script src="tests/test-runner.js"></script>
     <script src="tests/tetris.test.js"></script>
+    <script src="tests/title-screen.test.js"></script>
     <script src="src/tetris.js"></script>
     <script src="src/game.js"></script>
 </body>
