@@ -12,13 +12,26 @@ body {
 
 .container {
     display: flex;
-    gap: 20px;
+    gap: 30px;
     align-items: flex-start;
+    justify-content: center;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.left-panel {
+    min-width: 200px;
+    max-width: 250px;
+    background-color: #333;
+    padding: 20px;
+    border-radius: 8px;
+    border: 2px solid #555;
 }
 
 .game-area {
     border: 2px solid #fff;
     background-color: #000;
+    flex-shrink: 0;
 }
 
 #gameCanvas {
@@ -26,15 +39,21 @@ body {
     background-color: #000;
 }
 
-.info-panel {
-    min-width: 200px;
+.right-panel {
+    min-width: 150px;
+    max-width: 200px;
     background-color: #333;
     padding: 20px;
     border-radius: 8px;
     border: 2px solid #555;
 }
 
-.info-panel div {
+/* スコアセクション */
+.score-section {
+    margin-bottom: 25px;
+}
+
+.score-section div {
     margin-bottom: 15px;
     font-size: 18px;
     font-weight: bold;
@@ -121,18 +140,19 @@ body {
 
 /* ホールドエリア */
 .hold-piece {
-    margin-top: 20px;
+    margin-bottom: 25px;
     background-color: #2a2a2a;
     padding: 15px;
     border-radius: 5px;
-    border: 1px solid #555;
+    border: 1px solid #ff6b6b;
 }
 
 .hold-piece h3 {
     margin: 0 0 10px 0;
     color: #ff6b6b;
     text-align: center;
-    font-size: 16px;
+    font-size: 18px;
+    font-weight: bold;
 }
 
 #holdCanvas {
@@ -140,47 +160,54 @@ body {
     margin: 0 auto;
     background-color: #111;
     border: 1px solid #666;
+    border-radius: 3px;
 }
 
 /* NEXT表示エリア */
 .next-pieces {
-    margin-top: 20px;
     background-color: #2a2a2a;
-    padding: 15px;
+    padding: 20px;
     border-radius: 5px;
-    border: 1px solid #555;
+    border: 1px solid #4ecdc4;
 }
 
 .next-pieces h3 {
-    margin: 0 0 15px 0;
+    margin: 0 0 20px 0;
     color: #4ecdc4;
     text-align: center;
-    font-size: 16px;
+    font-size: 20px;
+    font-weight: bold;
 }
 
 .next-list {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 12px;
     align-items: center;
 }
 
 .next-list canvas {
     background-color: #111;
     border: 1px solid #666;
-    border-radius: 3px;
+    border-radius: 4px;
 }
 
 #next1Canvas {
     border: 2px solid #4ecdc4;
+    box-shadow: 0 0 10px rgba(78, 205, 196, 0.3);
 }
 
-#next2Canvas, #next3Canvas {
+#next2Canvas {
     opacity: 0.9;
+    border-color: #4ecdc4;
+}
+
+#next3Canvas {
+    opacity: 0.8;
 }
 
 #next4Canvas, #next5Canvas {
-    opacity: 0.7;
+    opacity: 0.6;
 }
 
 /* タイトル画面 */
@@ -248,4 +275,39 @@ body {
 /* タイトル画面が非表示のとき */
 .title-screen.hidden {
     display: none;
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 1000px) {
+    .container {
+        flex-direction: column;
+        align-items: center;
+        gap: 20px;
+    }
+    
+    .left-panel, .right-panel {
+        width: 100%;
+        max-width: 300px;
+    }
+    
+    .next-list {
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 8px;
+    }
+}
+
+@media (max-width: 600px) {
+    .container {
+        padding: 10px;
+    }
+    
+    .left-panel, .right-panel {
+        padding: 15px;
+    }
+    
+    .score-section div {
+        font-size: 16px;
+    }
 }

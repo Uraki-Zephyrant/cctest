@@ -21,28 +21,17 @@
     </div>
 
     <div class="container">
-        <div class="game-area">
-            <canvas id="gameCanvas" width="300" height="600"></canvas>
-        </div>
-        <div class="info-panel">
-            <div class="score">スコア: <span id="score">0</span></div>
-            <div class="level">レベル: <span id="level">1</span></div>
-            <div class="lines">ライン: <span id="lines">0</span></div>
+        <!-- 左側パネル：スコア、ホールド、操作説明 -->
+        <div class="left-panel">
+            <div class="score-section">
+                <div class="score">スコア: <span id="score">0</span></div>
+                <div class="level">レベル: <span id="level">1</span></div>
+                <div class="lines">ライン: <span id="lines">0</span></div>
+            </div>
             
             <div class="hold-piece">
                 <h3>HOLD</h3>
                 <canvas id="holdCanvas" width="80" height="80"></canvas>
-            </div>
-            
-            <div class="next-pieces">
-                <h3>NEXT</h3>
-                <div class="next-list">
-                    <canvas id="next1Canvas" width="60" height="60"></canvas>
-                    <canvas id="next2Canvas" width="50" height="50"></canvas>
-                    <canvas id="next3Canvas" width="40" height="40"></canvas>
-                    <canvas id="next4Canvas" width="30" height="30"></canvas>
-                    <canvas id="next5Canvas" width="30" height="30"></canvas>
-                </div>
             </div>
             
             <div class="controls">
@@ -52,6 +41,25 @@
                 <p>↑ : 回転</p>
                 <p>スペース : ハードドロップ</p>
                 <p>C : ホールド</p>
+            </div>
+        </div>
+
+        <!-- 中央：ゲームフィールド -->
+        <div class="game-area">
+            <canvas id="gameCanvas" width="300" height="600"></canvas>
+        </div>
+
+        <!-- 右側パネル：NEXT表示 -->
+        <div class="right-panel">
+            <div class="next-pieces">
+                <h3>NEXT</h3>
+                <div class="next-list">
+                    <canvas id="next1Canvas" width="70" height="70"></canvas>
+                    <canvas id="next2Canvas" width="60" height="60"></canvas>
+                    <canvas id="next3Canvas" width="50" height="50"></canvas>
+                    <canvas id="next4Canvas" width="40" height="40"></canvas>
+                    <canvas id="next5Canvas" width="40" height="40"></canvas>
+                </div>
             </div>
         </div>
     </div>

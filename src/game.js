@@ -385,7 +385,7 @@ class TetrisGame {
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
             if (piece) {
-                const blockSize = i === 0 ? 12 : (i === 1 ? 10 : (i === 2 ? 8 : 6));
+                const blockSize = i === 0 ? 14 : (i === 1 ? 12 : (i === 2 ? 10 : 8));
                 this.drawPieceOnCanvas(ctx, piece, canvas.width, canvas.height, blockSize);
             }
         }
