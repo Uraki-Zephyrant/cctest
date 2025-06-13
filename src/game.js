@@ -13,8 +13,20 @@ class TetrisGame {
         
         this.canvas = document.getElementById('gameCanvas');
         this.ctx = this.canvas.getContext('2d');
-        this.nextCanvas = document.getElementById('nextCanvas');
-        this.nextCtx = this.nextCanvas.getContext('2d');
+        
+        // ホールド・NEXT機能
+        this.holdManager = null;
+        this.nextQueue = null;
+        this.holdCanvas = document.getElementById('holdCanvas');
+        this.holdCtx = this.holdCanvas.getContext('2d');
+        this.nextCanvases = [
+            document.getElementById('next1Canvas'),
+            document.getElementById('next2Canvas'),
+            document.getElementById('next3Canvas'),
+            document.getElementById('next4Canvas'),
+            document.getElementById('next5Canvas')
+        ];
+        this.nextCtxs = this.nextCanvases.map(canvas => canvas.getContext('2d'));
         
         this.blockSize = 30;
         this.dropTime = 0;
@@ -22,7 +34,6 @@ class TetrisGame {
         
         // タイトル画面では初期化しない
         this.currentPiece = null;
-        this.nextPiece = null;
         
         this.setupEventListeners();
         this.lastTime = 0;
@@ -51,12 +62,41 @@ class TetrisGame {
         this.dropTime = 0;
         this.dropInterval = 1000;
         
+        // ホールド・NEXT機能を初期化
+        this.holdManager = new HoldManager();
+        this.nextQueue = new NextQueue();
+        
         // ピースを初期化
-        this.currentPiece = this.getRandomPiece();
-        this.nextPiece = this.getRandomPiece();
+        this.currentPiece = this.nextQueue.getNext();
         
         this.updateDisplay();
         this.draw();
+    }
+
+    holdCurrentPiece() {
+        if (!this.holdManager || !this.currentPiece) return;
+        
+        const exchangedPiece = this.holdManager.holdPiece(this.currentPiece);
+        
+        if (exchangedPiece) {
+            // 交換
+            this.currentPiece = exchangedPiece;
+        } else {
+            // 初回ホールド - 新しいピースを取得
+            this.currentPiece = this.nextQueue.getNext();
+        }
+        
+        this.draw();
+    }
+
+    getNextPieces(count) {
+        if (!this.nextQueue) return [];
+        
+        const pieces = [];
+        for (let i = 0; i < Math.min(count, this.nextQueue.queue.length); i++) {
+            pieces.push(this.nextQueue.getPieceAt(i));
+        }
+        return pieces;
     }
 
     endGame() {
@@ -124,6 +164,9 @@ class TetrisGame {
                 case 'Space':
                     this.hardDrop();
                     break;
+                case 'KeyC':
+                    this.holdCurrentPiece();
+                    break;
             }
             event.preventDefault();
         });
@@ -181,8 +224,12 @@ class TetrisGame {
         }
         
         // 次のピースを設定
-        this.currentPiece = this.nextPiece;
-        this.nextPiece = this.getRandomPiece();
+        this.currentPiece = this.nextQueue.getNext();
+        
+        // ホールド可能にする
+        if (this.holdManager) {
+            this.holdManager.enableHold();
+        }
         
         // ゲームオーバーチェック
         if (!this.board.isValidPosition(this.currentPiece, this.currentPiece.x, this.currentPiece.y)) {
@@ -251,14 +298,12 @@ class TetrisGame {
             // 現在のピースを描画
             this.drawPiece(this.ctx, this.currentPiece, this.currentPiece.x, this.currentPiece.y);
             
-            // 次のピースを描画
-            if (this.nextPiece) {
-                this.drawNextPiece();
-            }
+            // ホールド・NEXT表示を描画
+            this.drawHold();
+            this.drawNext();
         } else {
-            // 次のピースキャンバスもクリア
-            this.nextCtx.fillStyle = '#111';
-            this.nextCtx.fillRect(0, 0, this.nextCanvas.width, this.nextCanvas.height);
+            // キャンバスをクリア
+            this.clearHoldAndNext();
         }
     }
 
@@ -308,33 +353,77 @@ class TetrisGame {
         }
     }
 
-    drawNextPiece() {
-        this.nextCtx.fillStyle = '#111';
-        this.nextCtx.fillRect(0, 0, this.nextCanvas.width, this.nextCanvas.height);
+    drawHold() {
+        // ホールドキャンバスをクリア
+        this.holdCtx.fillStyle = '#111';
+        this.holdCtx.fillRect(0, 0, this.holdCanvas.width, this.holdCanvas.height);
         
-        const centerX = Math.floor((this.nextCanvas.width / 20 - this.nextPiece.shape[0].length) / 2);
-        const centerY = Math.floor((this.nextCanvas.height / 20 - this.nextPiece.shape.length) / 2);
+        if (this.holdManager && this.holdManager.heldPiece) {
+            this.drawPieceOnCanvas(
+                this.holdCtx, 
+                this.holdManager.heldPiece, 
+                this.holdCanvas.width, 
+                this.holdCanvas.height, 
+                16
+            );
+        }
+    }
+
+    drawNext() {
+        if (!this.nextQueue) return;
         
-        this.nextCtx.fillStyle = this.nextPiece.color;
-        for (let y = 0; y < this.nextPiece.shape.length; y++) {
-            for (let x = 0; x < this.nextPiece.shape[y].length; x++) {
-                if (this.nextPiece.shape[y][x] !== 0) {
-                    this.nextCtx.fillRect(
-                        (centerX + x) * 20,
-                        (centerY + y) * 20,
-                        20,
-                        20
+        for (let i = 0; i < this.nextCtxs.length; i++) {
+            const ctx = this.nextCtxs[i];
+            const canvas = this.nextCanvases[i];
+            const piece = this.nextQueue.getPieceAt(i);
+            
+            // キャンバスをクリア
+            ctx.fillStyle = '#111';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            if (piece) {
+                const blockSize = i === 0 ? 12 : (i === 1 ? 10 : (i === 2 ? 8 : 6));
+                this.drawPieceOnCanvas(ctx, piece, canvas.width, canvas.height, blockSize);
+            }
+        }
+    }
+
+    drawPieceOnCanvas(ctx, piece, canvasWidth, canvasHeight, blockSize) {
+        const centerX = Math.floor((canvasWidth - piece.shape[0].length * blockSize) / 2);
+        const centerY = Math.floor((canvasHeight - piece.shape.length * blockSize) / 2);
+        
+        ctx.fillStyle = piece.color;
+        for (let y = 0; y < piece.shape.length; y++) {
+            for (let x = 0; x < piece.shape[y].length; x++) {
+                if (piece.shape[y][x] !== 0) {
+                    ctx.fillRect(
+                        centerX + x * blockSize,
+                        centerY + y * blockSize,
+                        blockSize,
+                        blockSize
                     );
-                    this.nextCtx.strokeStyle = '#fff';
-                    this.nextCtx.strokeRect(
-                        (centerX + x) * 20,
-                        (centerY + y) * 20,
-                        20,
-                        20
+                    ctx.strokeStyle = '#fff';
+                    ctx.strokeRect(
+                        centerX + x * blockSize,
+                        centerY + y * blockSize,
+                        blockSize,
+                        blockSize
                     );
                 }
             }
         }
+    }
+
+    clearHoldAndNext() {
+        // ホールドキャンバスクリア
+        this.holdCtx.fillStyle = '#111';
+        this.holdCtx.fillRect(0, 0, this.holdCanvas.width, this.holdCanvas.height);
+        
+        // NEXTキャンバスクリア
+        this.nextCtxs.forEach((ctx, i) => {
+            ctx.fillStyle = '#111';
+            ctx.fillRect(0, 0, this.nextCanvases[i].width, this.nextCanvases[i].height);
+        });
     }
 
     gameLoop(time) {
