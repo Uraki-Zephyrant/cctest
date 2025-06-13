@@ -8,9 +8,9 @@
 git status
 git diff
 
-# 小さな単位でのコミット
+# 小さな単位でのコミット（日本語メッセージ）
 git add specific-file.js
-git commit -m "Implement specific feature
+git commit -m "特定機能の実装
 
 詳細な説明...
 
@@ -22,19 +22,25 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 git push
 ```
 
+### コミットメッセージのルール
+- **必ず日本語で記載**
+- 1行目: 変更内容の要約（50文字以内推奨）
+- 2行目: 空行
+- 3行目以降: 詳細説明（必要に応じて）
+
 ### TDD サイクルのコミットパターン
 ```bash
 # 1. テスト作成
 git add tests/feature.test.js
-git commit -m "Add failing tests for feature X"
+git commit -m "機能Xの失敗テストを追加"
 
 # 2. 最小実装
 git add src/feature.js
-git commit -m "Implement minimal feature X to pass tests"
+git commit -m "機能Xのテストを通す最小実装"
 
 # 3. リファクタリング（必要に応じて）
 git add src/feature.js
-git commit -m "Refactor feature X for better readability"
+git commit -m "機能Xのコードをリファクタリング"
 ```
 
 ## JavaScript実装テンプレート
