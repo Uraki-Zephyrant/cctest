@@ -76,6 +76,9 @@ class TetrisGame {
     holdCurrentPiece() {
         if (!this.holdManager || !this.currentPiece) return;
         
+        // ホールドできない場合は何もしない
+        if (!this.holdManager.canHold) return;
+        
         const exchangedPiece = this.holdManager.holdPiece(this.currentPiece);
         
         if (exchangedPiece) {

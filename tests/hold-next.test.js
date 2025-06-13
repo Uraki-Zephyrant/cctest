@@ -171,6 +171,29 @@ describe('TetrisGameのホールド・NEXT機能', () => {
         expect(game.currentPiece.type).toBe(attemptType);
     });
 
+    it('連続ホールド試行時にピースが消失しない', () => {
+        const game = new TetrisGame();
+        game.startGame();
+        
+        // 1回目のホールド
+        const firstPiece = game.currentPiece.type;
+        game.holdCurrentPiece();
+        
+        // 現在のピースをバックアップ
+        const secondPiece = game.currentPiece.type;
+        const secondPieceX = game.currentPiece.x;
+        const secondPieceY = game.currentPiece.y;
+        
+        // 連続ホールド試行
+        game.holdCurrentPiece();
+        
+        // ピースが消失せず、同じ状態であることを確認
+        expect(game.currentPiece).toBeTruthy();
+        expect(game.currentPiece.type).toBe(secondPiece);
+        expect(game.currentPiece.x).toBe(secondPieceX);
+        expect(game.currentPiece.y).toBe(secondPieceY);
+    });
+
     it('ピース固定後にホールドが再び可能になる', () => {
         const game = new TetrisGame();
         game.startGame();
