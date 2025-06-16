@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI問題修正テスト</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f0f0f0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 300px 1fr 300px;
+            gap: 20px;
+        }
+        .game-area {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .debug-panel {
+            background: #1a1a1a;
+            color: #00ff00;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            height: 500px;
+            overflow-y: auto;
+        }
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        button {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            background: #007cba;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #005a8b;
+        }
+        .danger {
+            background: #dc3545;
+        }
+        .danger:hover {
+            background: #c82333;
+        }
+        .success {
+            background: #28a745;
+        }
+        .success:hover {
+            background: #218838;
+        }
+        #gameCanvas {
+            border: 2px solid #333;
+            display: block;
+            margin: 0 auto;
+        }
+        .stats {
+            text-align: center;
+            margin: 10px 0;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .log-line {
+            margin: 2px 0;
+            word-wrap: break-word;
+        }
+        .log-ai { color: #00ffff; }
+        .log-game { color: #ffff00; }
+        .log-error { color: #ff0000; }
+        .log-success { color: #00ff00; }
+    </style>
+</head>
+<body>
+    <h1 style="text-align: center;">🤖 AI問題修正テスト</h1>
+    
+    <div class="container">
+        <div class="controls">
+            <h3>テスト制御</h3>
+            <button onclick="startAutoplay()" class="success">オートプレイ開始</button>
+            <button onclick="stopGame()" class="danger">ゲーム停止</button>
+            <button onclick="restartGame()">ゲーム再起動</button>
+            <button onclick="clearLogs()">ログクリア</button>
+            
+            <h3>AI設定</h3>
+            <label>デバッグレベル:</label>
+            <select id="debugLevel" onchange="updateDebugLevel()">
+                <option value="1">基本</option>
+                <option value="2" selected>詳細</option>
+                <option value="3">全て</option>
+            </select>
+            
+            <label>AI難易度:</label>
+            <select id="aiDifficulty">
+                <option value="easy">簡単</option>
+                <option value="normal" selected>普通</option>
+                <option value="hard">難しい</option>
+            </select>
+            
+            <h3>統計</h3>
+            <div id="stats">
+                <div>スコア: <span id="score">0</span></div>
+                <div>ライン: <span id="lines">0</span></div>
+                <div>レベル: <span id="level">1</span></div>
+                <div>実行回数: <span id="aiMoves">0</span></div>
+                <div>消去成功: <span id="linesCleared">0</span></div>
+            </div>
+        </div>
+        
+        <div class="game-area">
+            <canvas id="gameCanvas" width="300" height="600"></canvas>
+            <div class="stats">
+                <div>現在ピース: <span id="currentPiece">-</span></div>
+                <div>AI状態: <span id="aiStatus">停止中</span></div>
+            </div>
+        </div>
+        
+        <div class="debug-panel" id="debugLog">
+            <div class="log-success">AI修正デバッグログ - 準備完了</div>
+            <div class="log-ai">オートプレイ開始でテスト開始</div>
+        </div>
+    </div>
+    
+    <!-- ゲームファイル読み込み -->
+    <script src="src/tetris.js"></script>
+    <script src="src/game-state.js"></script>
+    <script src="src/hold-next.js"></script>
+    <script src="src/autoplay.js"></script>
+    <script src="src/game.js"></script>
+    
+    <script>
+        let game = null;
+        let aiMoveCount = 0;
+        let linesClearedCount = 0;
+        let isRunning = false;
+        
+        const debugLog = document.getElementById('debugLog');
+        const statsElements = {
+            score: document.getElementById('score'),
+            lines: document.getElementById('lines'),
+            level: document.getElementById('level'),
+            aiMoves: document.getElementById('aiMoves'),
+            linesCleared: document.getElementById('linesCleared'),
+            currentPiece: document.getElementById('currentPiece'),
+            aiStatus: document.getElementById('aiStatus')
+        };
+        
+        // ログ出力
+        function addLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'ai' ? 'log-ai' : 
+                            type === 'game' ? 'log-game' :
+                            type === 'error' ? 'log-error' :
+                            type === 'success' ? 'log-success' : '';
+            
+            const logLine = document.createElement('div');
+            logLine.className = `log-line ${className}`;
+            logLine.textContent = `[${timestamp}] ${message}`;
+            
+            debugLog.appendChild(logLine);
+            debugLog.scrollTop = debugLog.scrollHeight;
+            
+            // 1000行を超えたら古いログを削除
+            if (debugLog.children.length > 1000) {
+                debugLog.removeChild(debugLog.firstChild);
+            }
+        }
+        
+        // 元のconsole.logを拡張
+        const originalConsoleLog = console.log;
+        const originalConsoleError = console.error;
+        
+        console.log = function(...args) {
+            originalConsoleLog.apply(console, args);
+            const message = args.join(' ');
+            
+            if (message.includes('[AI')) {
+                addLog(message, 'ai');
+            } else if (message.includes('[移動実行]') || message.includes('[placePiece]') || message.includes('[ライン消去]')) {
+                addLog(message, 'game');
+            } else if (message.includes('Cold Clear') || message.includes('思考') || message.includes('戦略')) {
+                addLog(message, 'ai');
+            } else {
+                addLog(message);
+            }
+        };
+        
+        console.error = function(...args) {
+            originalConsoleError.apply(console, args);
+            addLog(args.join(' '), 'error');
+        };
+        
+        // 統計更新
+        function updateStats() {
+            if (!game) return;
+            
+            statsElements.score.textContent = game.score;
+            statsElements.lines.textContent = game.lines;
+            statsElements.level.textContent = game.level;
+            statsElements.aiMoves.textContent = aiMoveCount;
+            statsElements.linesCleared.textContent = linesClearedCount;
+            statsElements.currentPiece.textContent = game.currentPiece ? game.currentPiece.type : '-';
+            statsElements.aiStatus.textContent = isRunning ? '実行中' : '停止中';
+        }
+        
+        // ライン消去監視
+        function monitorLineClearing() {
+            if (!game) return;
+            
+            const currentLines = game.lines;
+            if (currentLines > linesClearedCount) {
+                const newLines = currentLines - linesClearedCount;
+                linesClearedCount = currentLines;
+                addLog(`✅ ライン消去成功: ${newLines}ライン (累計: ${linesClearedCount})`, 'success');
+            }
+        }
+        
+        // オートプレイ開始
+        function startAutoplay() {
+            try {
+                addLog('=== オートプレイ開始 ===', 'success');
+                
+                if (game) {
+                    game = null;
+                }
+                
+                // ゲーム作成
+                game = new TetrisGame();
+                
+                // デバッグレベル設定
+                const debugLevel = parseInt(document.getElementById('debugLevel').value);
+                const difficulty = document.getElementById('aiDifficulty').value;
+                
+                addLog(`設定: デバッグレベル=${debugLevel}, 難易度=${difficulty}`);
+                
+                // ゲーム開始
+                game.startGame('autoplay', {
+                    difficulty: difficulty,
+                    speed: 1.0
+                });
+                
+                // デバッグレベル設定
+                if (game.aiEngine) {
+                    game.aiEngine.debugLevel = debugLevel;
+                    addLog(`AI デバッグレベル設定: ${debugLevel}`, 'ai');
+                }
+                
+                isRunning = true;
+                aiMoveCount = 0;
+                linesClearedCount = 0;
+                
+                // 定期更新開始
+                const updateInterval = setInterval(() => {
+                    if (!isRunning || !game || game.gameOver) {
+                        clearInterval(updateInterval);
+                        isRunning = false;
+                        if (game && game.gameOver) {
+                            addLog('=== ゲーム終了 ===', 'error');
+                            addLog(`最終結果: スコア=${game.score}, ライン=${game.lines}`, 'success');
+                        }
+                        return;
+                    }
+                    
+                    updateStats();
+                    monitorLineClearing();
+                    
+                    // AI実行回数カウント
+                    if (game.aiEngine && game.currentPiece) {
+                        // 実際のAI実行をトリガー
+                        if (Date.now() - game.lastAIAction > game.aiThinkInterval) {
+                            aiMoveCount++;
+                        }
+                    }
+                }, 100);
+                
+                addLog('オートプレイ開始完了', 'success');
+                
+            } catch (error) {
+                addLog(`オートプレイ開始エラー: ${error.message}`, 'error');
+                console.error('オートプレイエラー:', error);
+            }
+        }
+        
+        // ゲーム停止
+        function stopGame() {
+            isRunning = false;
+            if (game) {
+                game.gameOver = true;
+            }
+            addLog('ゲーム停止', 'game');
+        }
+        
+        // ゲーム再起動
+        function restartGame() {
+            stopGame();
+            setTimeout(() => {
+                startAutoplay();
+            }, 500);
+        }
+        
+        // ログクリア
+        function clearLogs() {
+            debugLog.innerHTML = '<div class="log-success">ログクリア完了</div>';
+        }
+        
+        // デバッグレベル更新
+        function updateDebugLevel() {
+            if (game && game.aiEngine) {
+                const newLevel = parseInt(document.getElementById('debugLevel').value);
+                game.aiEngine.debugLevel = newLevel;
+                addLog(`デバッグレベル変更: ${newLevel}`, 'ai');
+            }
+        }
+        
+        // エラーキャッチ
+        window.addEventListener('error', (event) => {
+            addLog(`グローバルエラー: ${event.error.message}`, 'error');
+        });
+        
+        // 初期化完了
+        addLog('AI修正テストページ読み込み完了', 'success');
+        addLog('「オートプレイ開始」ボタンでテスト開始', 'ai');
+    </script>
+</body>
+</html>
