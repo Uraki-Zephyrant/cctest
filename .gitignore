@@ -1,0 +1,27 @@
+# 資料・画像フォルダ（GitHub除外）
+resources/
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+
+# テスト用ファイル
+test-*.js
+
+# ログファイル
+*.log
+
+# 一時ファイル
+*.tmp
+*.temp
+
+# エディタ関連
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS関連
+.DS_Store
+Thumbs.db
