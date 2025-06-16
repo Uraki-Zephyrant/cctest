@@ -87,17 +87,34 @@
         </div>
     </div>
     
-    <script src="tests/test-runner.js"></script>
-    <script src="tests/tetris.test.js"></script>
-    <script src="tests/title-screen.test.js"></script>
-    <script src="tests/hold-next.test.js"></script>
-    <script src="tests/advanced-techniques.test.js"></script>
-    <script src="tests/autoplay.test.js"></script>
+    <!-- JavaScript読み込み（依存関係順） -->
+    
+    <!-- 1. 基本データ構造 -->
+    <script src="src/tetris.js"></script>
+    
+    <!-- 2. ゲーム状態管理 -->
     <script src="src/game-state.js"></script>
     <script src="src/hold-next.js"></script>
+    
+    <!-- 3. 高度なテクニック -->
     <script src="src/advanced-techniques.js"></script>
+    
+    <!-- 4. AI実装 -->
     <script src="src/autoplay.js"></script>
-    <script src="src/tetris.js"></script>
+    
+    <!-- 5. メインゲーム -->
     <script src="src/game.js"></script>
+    
+    <script>
+        // 初期化確認
+        window.addEventListener('load', function() {
+            console.log('=== クラス存在確認 ===');
+            console.log('Tetromino:', typeof Tetromino !== 'undefined' ? '✓' : '✗');
+            console.log('GameBoard:', typeof GameBoard !== 'undefined' ? '✓' : '✗');
+            console.log('TetrisAI:', typeof TetrisAI !== 'undefined' ? '✓' : '✗');
+            console.log('TetrisGame:', typeof TetrisGame !== 'undefined' ? '✓' : '✗');
+            console.log('=== 初期化完了 ===');
+        });
+    </script>
 </body>
 </html>

@@ -26,6 +26,33 @@ class GameStateManager {
     }
 }
 
+// ゲームモード管理クラス
+class GameModeManager {
+    constructor() {
+        this.isAutoplay = false;
+        this.autoplaySpeed = 1.0;
+        this.allowManualIntervention = true;
+        this.lastManualIntervention = 0;
+        this.manualInterventionCooldown = 3000; // 3秒
+    }
+
+    setMode(mode) {
+        this.isAutoplay = (mode === 'autoplay');
+    }
+
+    setAutoplaySpeed(speed) {
+        this.autoplaySpeed = Math.max(0.1, Math.min(5.0, speed));
+    }
+
+    triggerManualIntervention() {
+        this.lastManualIntervention = Date.now();
+    }
+
+    isManualInterventionRecent() {
+        return (Date.now() - this.lastManualIntervention) < this.manualInterventionCooldown;
+    }
+}
+
 // タイトル画面クラス
 class TitleScreen {
     constructor() {
