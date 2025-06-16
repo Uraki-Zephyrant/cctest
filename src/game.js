@@ -96,17 +96,43 @@ class TetrisGame {
         this.currentPiece = this.nextQueue.getNext();
         
         // オートプレイ設定
+        console.log(`[startGame] モード設定: ${mode}, オプション:`, options);
         this.modeManager.setMode(mode);
+        
         if (mode === 'autoplay') {
+            console.log(`[startGame] オートプレイモード初期化開始...`);
+            
             this.aiEngine = new TetrisAI();
+            console.log(`[startGame] TetrisAI作成完了: ${!!this.aiEngine}`);
+            
             this.aiEngine.setDifficulty(options.difficulty || 'normal');
+            this.aiEngine.debugLevel = 1; // 基本レベルでデバッグ開始
             this.modeManager.setAutoplaySpeed(options.speed || 1.0);
             this.aiThinkInterval = Math.max(50, 200 / this.modeManager.autoplaySpeed);
-            this.lastAIAction = Date.now();
+            this.lastAIAction = Date.now() - this.aiThinkInterval; // 即座に実行
+            
+            console.log(`[startGame] オートプレイ初期化完了:`);
+            console.log(`  - AI: ${!!this.aiEngine}`);
+            console.log(`  - isAutoplay: ${this.modeManager.isAutoplay}`);
+            console.log(`  - 思考間隔: ${this.aiThinkInterval}ms`);
+            console.log(`  - 難易度: ${options.difficulty || 'normal'}`);
+        } else {
+            console.log(`[startGame] 手動モードで開始`);
         }
         
         this.updateDisplay();
         this.draw();
+        
+        // オートプレイの場合、初回AI実行を強制実行
+        if (mode === 'autoplay' && this.aiEngine && this.currentPiece) {
+            console.log(`[startGame] 初回AI実行を強制開始...`);
+            setTimeout(() => {
+                if (this.modeManager.isAutoplay && this.aiEngine && this.currentPiece) {
+                    console.log(`[startGame] 初回AI実行実行中...`);
+                    this.executeAIMove();
+                }
+            }, 500); // 500ms後に実行
+        }
     }
 
     holdCurrentPiece() {
@@ -129,10 +155,16 @@ class TetrisGame {
     }
 
     executeAIMove() {
+        console.log(`[executeAIMove] 開始 - AI思考実行中...`);
+        
         if (!this.aiEngine || !this.modeManager.isAutoplay || !this.currentPiece) {
+            console.log(`[executeAIMove] 実行条件不足: AI=${!!this.aiEngine}, オートプレイ=${this.modeManager.isAutoplay}, ピース=${!!this.currentPiece}`);
             return;
         }
 
+        // ==== 詳細デバッグ: ボード状態を記録 ====
+        const boardStateBefore = this.logBoardState('AI思考前');
+        
         // 次の数ピースを取得
         const nextPieces = this.getNextPieces(this.aiEngine.lookAheadDepth);
         
@@ -145,41 +177,132 @@ class TetrisGame {
             );
             
             if (shouldHold) {
+                console.log(`[AI] ホールド判定: ピース${this.currentPiece.type}をホールド`);
                 this.holdCurrentPiece();
                 return;
             }
         }
         
-        // 最適な移動を計算
-        const bestMove = this.aiEngine.calculateBestMove(this.board, this.currentPiece, nextPieces);
-        
-        // 移動を実行
-        this.executeMoveSequence(bestMove);
+        try {
+            // 最適な移動を計算
+            console.log(`[AI] 思考開始: ピース=${this.currentPiece.type}, 位置=(${this.currentPiece.x}, ${this.currentPiece.y})`);
+            const bestMove = this.aiEngine.calculateBestMove(this.board, this.currentPiece, nextPieces);
+            
+            if (bestMove) {
+                console.log(`[AI] 思考完了: 最適手=(${bestMove.x}, ${bestMove.rotation}), スコア=${bestMove.score ? bestMove.score.toFixed(1) : 'N/A'}`);
+                
+                // ==== デバッグ: AI思考の詳細シミュレーション ====
+                this.debugAIDecision(bestMove);
+                
+                // 移動を実行
+                this.executeMoveSequence(bestMove);
+                console.log(`[AI] 移動実行完了`);
+            } else {
+                console.log(`[AI] 警告: 最適手が見つかりませんでした`);
+            }
+            
+        } catch (error) {
+            console.error(`[AI] エラー:`, error.message);
+        }
         
         this.lastAIAction = Date.now();
     }
 
+    // デバッグ用: AI決定の詳細シミュレーション
+    debugAIDecision(bestMove) {
+        console.log(`==== AI決定デバッグ ====`);
+        
+        // AIの思考をシミュレート
+        const simulatedBoard = this.aiEngine.simulateMove(this.board, this.currentPiece, bestMove);
+        const completedLines = simulatedBoard.getCompletedLines();
+        
+        console.log(`AI予測:`);
+        console.log(`  - 配置位置: (${bestMove.x}, ${bestMove.rotation})`);
+        console.log(`  - 予測消去ライン数: ${completedLines ? completedLines.length : 0}`);
+        console.log(`  - 予測消去ライン: [${completedLines ? completedLines.join(', ') : 'なし'}]`);
+        
+        if (completedLines && completedLines.length > 0) {
+            console.log(`  - AI予測: ${completedLines.length}ライン消去可能`);
+        } else {
+            console.log(`  - AI予測: ライン消去なし`);
+        }
+        
+        console.log(`==================`);
+    }
+
+    // デバッグ用: ボード状態のログ出力
+    logBoardState(label) {
+        if (!this.aiEngine || this.aiEngine.debugLevel < 2) {
+            return {
+                totalBlocks: this.aiEngine ? this.aiEngine.countTotalBlocks(this.board) : 0,
+                maxHeight: this.aiEngine ? this.aiEngine.getMaxHeight(this.board) : 0,
+                almostCompleteLines: this.aiEngine ? this.aiEngine.countAlmostCompleteLines(this.board) : 0
+            };
+        }
+        
+        console.log(`==== ボード状態: ${label} ====`);
+        
+        const totalBlocks = this.aiEngine.countTotalBlocks(this.board);
+        const maxHeight = this.aiEngine.getMaxHeight(this.board);
+        const almostCompleteLines = this.aiEngine.countAlmostCompleteLines(this.board);
+        
+        console.log(`総ブロック数: ${totalBlocks}`);
+        console.log(`最大高さ: ${maxHeight}`);
+        console.log(`ほぼ完成ライン数: ${almostCompleteLines}`);
+        
+        // ボード上部10行を表示
+        console.log(`ボード上部10行:`);
+        for (let y = 0; y < Math.min(10, this.board.height); y++) {
+            const row = this.board.grid[y].map(cell => cell === 0 ? '.' : '#').join('');
+            console.log(`  ${y.toString().padStart(2)}: ${row}`);
+        }
+        
+        console.log(`========================`);
+        
+        return {
+            totalBlocks,
+            maxHeight,
+            almostCompleteLines
+        };
+    }
+
     executeMoveSequence(move) {
-        // 回転
-        for (let r = 0; r < move.rotation; r++) {
-            this.rotatePiece();
+        console.log(`[移動実行] 開始: 目標位置=(${move.x}, ${move.rotation})`);
+        
+        if (!this.currentPiece) {
+            console.log(`[移動実行] エラー: currentPieceが存在しません`);
+            return;
         }
         
-        // 横移動
-        const targetX = move.x;
-        const currentX = this.currentPiece.x;
-        const moveDistance = targetX - currentX;
-        
-        for (let i = 0; i < Math.abs(moveDistance); i++) {
-            if (moveDistance > 0) {
-                this.movePieceRight();
-            } else {
-                this.movePieceLeft();
+        try {
+            // 回転
+            console.log(`[移動実行] 回転: ${move.rotation}回`);
+            for (let r = 0; r < move.rotation; r++) {
+                this.rotatePiece();
             }
+            
+            // 横移動
+            const targetX = move.x;
+            const currentX = this.currentPiece.x;
+            const moveDistance = targetX - currentX;
+            
+            console.log(`[移動実行] 横移動: ${currentX} → ${targetX} (${moveDistance})`);
+            for (let i = 0; i < Math.abs(moveDistance); i++) {
+                if (moveDistance > 0) {
+                    this.movePieceRight();
+                } else {
+                    this.movePieceLeft();
+                }
+            }
+            
+            // ハードドロップ
+            console.log(`[移動実行] ハードドロップ実行`);
+            this.hardDrop();
+            
+            console.log(`[移動実行] 完了`);
+        } catch (error) {
+            console.error(`[移動実行] エラー:`, error.message);
         }
-        
-        // ハードドロップ
-        this.hardDrop();
     }
 
     setDebugMode(enabled) {
@@ -217,6 +340,7 @@ class TetrisGame {
     update(deltaTime) {
         // タイトル画面では更新しない
         if (!this.stateManager.isPlaying()) {
+            console.log(`[update] ゲーム状態が非プレイ中: ${this.stateManager.currentState}`);
             return;
         }
         
@@ -225,17 +349,33 @@ class TetrisGame {
         
         // アニメーション中は他の処理を停止
         if (this.lineAnimation.active) {
+            console.log(`[update] ライン消去アニメーション中`);
             return;
         }
         
-        // オートプレイ処理
-        if (this.modeManager.isAutoplay && this.aiEngine) {
-            // 手動介入中はAI処理を一時停止
-            if (!this.modeManager.isManualInterventionRecent()) {
-                const timeSinceLastAI = Date.now() - this.lastAIAction;
-                if (timeSinceLastAI > this.aiThinkInterval) {
-                    this.executeAIMove();
-                }
+        // currentPieceが存在しない場合は処理を停止
+        if (!this.currentPiece) {
+            console.log(`[update] currentPieceが存在しません - 新しいピースを生成する必要があります`);
+            return;
+        }
+        
+        console.log(`[update] 通常更新処理開始 - オートプレイ=${this.modeManager ? this.modeManager.isAutoplay : 'undefined'}`);
+        
+        // オートプレイ処理（強制実行）
+        if (this.modeManager && this.modeManager.isAutoplay && this.aiEngine && this.currentPiece) {
+            console.log(`[オートプレイ] 条件確認完了 - AI実行中...`);
+            
+            const timeSinceLastAI = Date.now() - this.lastAIAction;
+            
+            // AI実行間隔を短縮（即座に実行）
+            if (timeSinceLastAI > 100) { // 100ms間隔に短縮
+                console.log(`[AI] 思考開始 - 経過時間: ${timeSinceLastAI}ms`);
+                this.executeAIMove();
+            }
+        } else {
+            // デバッグ: なぜAIが実行されないかを詳細に出力
+            if (this.modeManager && this.modeManager.isAutoplay) {
+                console.log(`[オートプレイ診断] modeManager=${!!this.modeManager}, isAutoplay=${this.modeManager.isAutoplay}, aiEngine=${!!this.aiEngine}, currentPiece=${!!this.currentPiece}`);
             }
         }
         
@@ -301,6 +441,7 @@ class TetrisGame {
     }
 
     movePieceLeft() {
+        if (!this.currentPiece) return;
         if (this.board.isValidPosition(this.currentPiece, this.currentPiece.x - 1, this.currentPiece.y)) {
             this.currentPiece.x--;
             this.draw();
@@ -308,6 +449,7 @@ class TetrisGame {
     }
 
     movePieceRight() {
+        if (!this.currentPiece) return;
         if (this.board.isValidPosition(this.currentPiece, this.currentPiece.x + 1, this.currentPiece.y)) {
             this.currentPiece.x++;
             this.draw();
@@ -315,6 +457,7 @@ class TetrisGame {
     }
 
     movePieceDown() {
+        if (!this.currentPiece) return false;
         if (this.board.isValidPosition(this.currentPiece, this.currentPiece.x, this.currentPiece.y + 1)) {
             this.currentPiece.y++;
             this.draw();
@@ -326,6 +469,7 @@ class TetrisGame {
     }
 
     rotatePiece() {
+        if (!this.currentPiece) return;
         const rotatedPiece = this.currentPiece.copy();
         rotatedPiece.rotate();
         
@@ -336,22 +480,36 @@ class TetrisGame {
     }
 
     hardDrop() {
+        if (!this.currentPiece) return;
         while (this.movePieceDown()) {
             // 落下可能な限り落下
         }
     }
 
     placePiece() {
+        console.log(`[placePiece] ピース配置開始: ${this.currentPiece.type} at (${this.currentPiece.x}, ${this.currentPiece.y})`);
+        
+        // ==== デバッグ: 配置前のボード状態 ====
+        this.logBoardState('ピース配置前');
+        
         this.board.placePiece(this.currentPiece);
+        
+        // ==== デバッグ: 配置後のボード状態 ====
+        this.logBoardState('ピース配置後');
         
         // ピースを配置したので現在のピースを無効化
         this.currentPiece = null;
         
         // 完成した行をチェック
         const completedLines = this.board.getCompletedLines();
+        console.log(`[placePiece] 完成ライン検出: ${completedLines.length}ライン [${completedLines.join(', ')}]`);
+        
         if (completedLines.length > 0) {
+            console.log(`[placePiece] ライン消去アニメーション開始: ${completedLines.length}ライン`);
             this.startLineAnimation(completedLines);
             return; // アニメーション完了後に続行
+        } else {
+            console.log(`[placePiece] ライン消去なし - 次のピース生成`);
         }
         
         this.spawnNextPiece();
@@ -441,15 +599,28 @@ class TetrisGame {
     }
 
     clearLines(lineCount) {
+        console.log(`[clearLines] ライン消去処理開始: ${lineCount}ライン`);
+        
         const baseScore = [0, 40, 100, 300, 1200];
-        this.score += baseScore[lineCount] * this.level;
+        const scoreGain = baseScore[lineCount] * this.level;
+        this.score += scoreGain;
         this.lines += lineCount;
+        
+        console.log(`[clearLines] スコア追加: ${scoreGain} (total: ${this.score})`);
+        console.log(`[clearLines] 総ライン数: ${this.lines}`);
         
         // レベルアップ（10ライン毎）
         const newLevel = Math.floor(this.lines / 10) + 1;
         if (newLevel > this.level) {
             this.level = newLevel;
             this.dropInterval = Math.max(50, 1000 - (this.level - 1) * 50);
+            console.log(`[clearLines] レベルアップ: ${this.level} (落下間隔: ${this.dropInterval}ms)`);
+        }
+        
+        // AIの効率更新
+        if (this.aiEngine && lineCount > 0) {
+            this.aiEngine.updateGameState(lineCount, false, false);
+            console.log(`[clearLines] AI効率更新: ${this.aiEngine.gameState.efficiency.toFixed(3)}`);
         }
     }
 
@@ -721,6 +892,9 @@ class TetrisGame {
         if (this.stateManager.isPlaying()) {
             this.update(deltaTime);
             this.draw();
+        } else {
+            // デバッグ: なぜゲームループが実行されないか
+            console.log(`[ゲームループ] 状態確認: isPlaying=${this.stateManager.isPlaying()}, currentState=${this.stateManager.currentState}`);
         }
         
         requestAnimationFrame((time) => this.gameLoop(time));
