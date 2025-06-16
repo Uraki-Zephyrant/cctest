@@ -1,4 +1,4 @@
-// Cold Clear準拠の高性能テトリスAI - 100ライン目標
+// 実用的高性能テトリスAI - 安全重視・ライン消去優先版
 class TetrisAI {
     constructor() {
         this.difficulty = 'normal';
@@ -7,42 +7,42 @@ class TetrisAI {
         this.lookAheadDepth = 4;
         this.debugLevel = 2; // 0: なし, 1: 基本, 2: 詳細, 3: 全て
         
-        // Cold Clear準拠評価パラメータ
+        // 実用的テトリスAI評価パラメータ（高さ制御重視版）
         this.evaluation = {
-            // フィールド状態評価
+            // フィールド状態評価（高さ制御を最重要視）
             back_to_back: 52,
-            bumpiness: -24,
-            bumpiness_sq: -7,
-            row_transitions: -5,
-            height: -39,
-            top_half: -150,
-            top_quarter: -511,
-            jeopardy: -11,
-            cavity_cells: -173,
-            cavity_cells_sq: -3,
-            overhang_cells: -34,
-            overhang_cells_sq: -1,
-            covered_cells: -17,
-            covered_cells_sq: -1,
-            well_depth: 57,
-            max_well_depth: 17,
-            well_column: [20, 23, 20, 50, 59, 21, 59, 10, -10, 24],
+            bumpiness: -35,
+            bumpiness_sq: -12,
+            row_transitions: -8,
+            height: -120,          // 高さペナルティを大幅強化
+            top_half: -400,        // 上半分ペナルティ強化
+            top_quarter: -800,     // 上四分の一ペナルティ強化
+            jeopardy: -50,         // 危険状態ペナルティ強化
+            cavity_cells: -200,
+            cavity_cells_sq: -8,
+            overhang_cells: -50,
+            overhang_cells_sq: -5,
+            covered_cells: -25,
+            covered_cells_sq: -3,
+            well_depth: 40,        // 井戸深度評価を控えめに
+            max_well_depth: 10,
+            well_column: [15, 18, 15, 30, 35, 16, 35, 8, -5, 18],
             
-            // ライン消去評価（修正版：ライン消去を積極的に評価）
+            // ライン消去評価（安全重視・実用性重視版）
             move_time: -3,
             wasted_t: -152,
-            b2b_clear: 104,
-            clear1: 100,         // シングル（確実にライン消去）
-            clear2: 250,         // ダブル（効率的）
-            clear3: 400,         // トリプル（非常に効率的）
-            clear4: 800,         // テトリス（最高効率）
-            tspin1: 121,         // T-spin Single
-            tspin2: 410,         // T-spin Double
-            tspin3: 602,         // T-spin Triple
-            mini_tspin1: -158,   // Mini T-spin（低評価）
-            mini_tspin2: -93,    // Mini T-spin（低評価）
-            perfect_clear: 999,  // Perfect Clear（最高評価）
-            combo_garbage: 150,  // コンボ
+            b2b_clear: 150,
+            clear1: 200,         // シングル（確実にライン消去を高評価）
+            clear2: 400,         // ダブル（効率的）
+            clear3: 650,         // トリプル（非常に効率的）
+            clear4: 1000,        // テトリス（最高効率）
+            tspin1: 300,         // T-spin Single
+            tspin2: 600,         // T-spin Double
+            tspin3: 800,         // T-spin Triple
+            mini_tspin1: 150,    // Mini T-spin（適度に評価）
+            mini_tspin2: 250,    // Mini T-spin（適度に評価）
+            perfect_clear: 500,  // Perfect Clear（過度に優先しない）
+            combo_garbage: 180,  // コンボ
             
             // T-spin slot評価
             tslot: [8, 148, 192, 407]
@@ -80,9 +80,9 @@ class TetrisAI {
         const startTime = Date.now();
         
         try {
-            console.log(`Cold Clear AI思考開始: ピース=${piece.type}, 効率=${this.gameState.efficiency.toFixed(3)}`);
+            console.log(`実用AI思考開始: ピース=${piece.type}, 効率=${this.gameState.efficiency.toFixed(3)}`);
             
-            // 100ライン目標のための戦略選択
+            // 安全重視の戦略選択
             const strategy = this.selectStrategy(board);
             console.log(`戦略選択: ${strategy.name}`);
             
@@ -107,53 +107,63 @@ class TetrisAI {
         }
     }
     
-    // 100ライン目標のための戦略選択
+    // 実用的テトリスAIのための戦略選択（安全重視）
     selectStrategy(board) {
         const maxHeight = this.getMaxHeight(board);
         const totalBlocks = this.countTotalBlocks(board);
         const almostCompleteLines = this.countAlmostCompleteLines(board);
+        const avgHeight = this.getHeights(board).reduce((a, b) => a + b, 0) / 10;
         
-        // 戦略1: Perfect Clear狙い（序盤、ブロック少数時）
-        if (totalBlocks <= 40 && this.gameState.totalLines < 20) {
+        // 戦略1: 超緊急回避（危険時）- 最優先
+        if (maxHeight >= 14 || avgHeight >= 10) {
             return {
-                name: 'PERFECT_CLEAR',
-                priority: ['perfect_clear', 'tspin2', 'tspin3', 'clear4'],
-                weights: { perfect_clear: 1500, efficiency_bonus: 500 }
+                name: 'SUPER_EMERGENCY',
+                priority: ['clear4', 'clear3', 'clear2', 'clear1'],
+                weights: { survival: 2000, height_penalty: 1000, line_clear_bonus: 800 }
             };
         }
         
-        // 戦略2: T-spin重視（中盤）
-        if (this.gameState.totalLines < 70 && maxHeight < 15) {
-            return {
-                name: 'T_SPIN_FOCUS',
-                priority: ['tspin3', 'tspin2', 'clear4', 'combo_garbage'],
-                weights: { tspin_bonus: 300, back_to_back: 200 }
-            };
-        }
-        
-        // 戦略3: Tetris重視（終盤）
-        if (this.gameState.totalLines >= 70 || almostCompleteLines >= 8) {
-            return {
-                name: 'TETRIS_RUSH',
-                priority: ['clear4', 'clear3', 'tspin3'],
-                weights: { tetris_bonus: 400, line_efficiency: 300 }
-            };
-        }
-        
-        // 戦略4: 緊急回避（危険時）
-        if (maxHeight >= 16) {
+        // 戦略2: 緊急回避（高さ注意）
+        if (maxHeight >= 11 || avgHeight >= 8) {
             return {
                 name: 'EMERGENCY',
                 priority: ['clear4', 'clear3', 'clear2', 'clear1'],
-                weights: { survival: 1000, height_penalty: 500 }
+                weights: { survival: 1200, height_penalty: 600, line_clear_bonus: 400 }
             };
         }
         
-        // デフォルト: バランス戦略
+        // 戦略3: 安全重視（中程度の高さ）
+        if (maxHeight >= 8 || avgHeight >= 6 || almostCompleteLines >= 4) {
+            return {
+                name: 'SAFETY_FIRST',
+                priority: ['clear4', 'clear3', 'clear2', 'tspin2'],
+                weights: { safety: 600, line_clear_bonus: 300, tetris_bonus: 200 }
+            };
+        }
+        
+        // 戦略4: Perfect Clear狙い（序盤、安全時のみ）
+        if (totalBlocks <= 20 && maxHeight <= 6 && this.gameState.totalLines < 15) {
+            return {
+                name: 'PERFECT_CLEAR',
+                priority: ['perfect_clear', 'clear4', 'clear3', 'clear2'],
+                weights: { perfect_clear: 400, efficiency_bonus: 200 }
+            };
+        }
+        
+        // 戦略5: T-spin重視（中盤、安全時）
+        if (this.gameState.totalLines < 60 && maxHeight <= 7) {
+            return {
+                name: 'T_SPIN_FOCUS',
+                priority: ['tspin3', 'tspin2', 'clear4', 'clear3'],
+                weights: { tspin_bonus: 250, back_to_back: 150 }
+            };
+        }
+        
+        // デフォルト: バランス戦略（ライン消去重視）
         return {
             name: 'BALANCED',
-            priority: ['clear4', 'tspin2', 'clear3'],
-            weights: { balance: 100 }
+            priority: ['clear4', 'clear3', 'clear2', 'tspin2'],
+            weights: { balance: 150, line_clear_bonus: 100 }
         };
     }
     
@@ -258,16 +268,19 @@ class TetrisAI {
             score += this.evaluation.combo_garbage * Math.min(this.gameState.combo, 10);
         }
         
-        // 100ライン目標のための効率ボーナス
+        // 実用的効率ボーナス（ライン消去を積極的に評価）
         const efficiency = lines / 1.0; // 1ピースあたりのライン数
-        if (efficiency > 1.0) {
-            score += 200 * efficiency; // 高効率ボーナス
+        score += 150 * lines; // 基本ライン消去ボーナス
+        if (efficiency >= 2.0) {
+            score += 300 * efficiency; // 高効率ボーナス
+        } else if (efficiency >= 1.0) {
+            score += 200 * efficiency; // 標準効率ボーナス
         }
         
         return score;
     }
     
-    // フィールド状態評価（Cold Clear準拠）
+    // フィールド状態評価（安全重視・実用版）
     evaluateFieldState(board) {
         let score = 0;
         
@@ -276,8 +289,25 @@ class TetrisAI {
         const maxHeight = Math.max(...heights);
         const avgHeight = heights.reduce((a, b) => a + b, 0) / heights.length;
         
+        // 高さペナルティを大幅強化
         score += this.evaluation.height * avgHeight;
-        score += this.evaluation.max_well_depth * maxHeight;
+        score += this.evaluation.height * maxHeight * 0.5; // 最大高さ追加ペナルティ
+        
+        // 危険高さの追加ペナルティ
+        if (maxHeight >= 14) {
+            score -= 1000 * (maxHeight - 13); // 超危険ペナルティ
+        } else if (maxHeight >= 11) {
+            score -= 400 * (maxHeight - 10); // 危険ペナルティ
+        } else if (maxHeight >= 8) {
+            score -= 100 * (maxHeight - 7); // 注意ペナルティ
+        }
+        
+        // 平均高さペナルティ
+        if (avgHeight >= 10) {
+            score -= 600 * (avgHeight - 9);
+        } else if (avgHeight >= 8) {
+            score -= 200 * (avgHeight - 7);
+        }
         
         // バンピネス（凹凸）
         let bumpiness = 0;
@@ -288,7 +318,7 @@ class TetrisAI {
         }
         score += this.evaluation.bumpiness * bumpiness;
         
-        // 上部危険度
+        // 上部危険度（強化版）
         const topHalfBlocks = this.countBlocksInRange(board, 0, 10);
         const topQuarterBlocks = this.countBlocksInRange(board, 0, 5);
         score += this.evaluation.top_half * topHalfBlocks;
@@ -305,7 +335,7 @@ class TetrisAI {
         score += this.evaluation.overhang_cells * overhangs;
         score += this.evaluation.overhang_cells_sq * overhangs * overhangs;
         
-        // 井戸評価
+        // 井戸評価（控えめに）
         const wells = this.analyzeWells(board);
         score += this.evaluation.well_depth * wells.totalDepth;
         score += this.evaluation.max_well_depth * wells.maxDepth;
@@ -344,11 +374,30 @@ class TetrisAI {
         return score;
     }
     
-    // 戦略固有ボーナス適用
+    // 戦略固有ボーナス適用（実用版）
     applyStrategyBonus(board, clearInfo, strategy) {
         let bonus = 0;
         
         switch (strategy.name) {
+            case 'SUPER_EMERGENCY':
+            case 'EMERGENCY':
+                // 緊急時はライン消去を最優先
+                if (clearInfo.linesCleared > 0) {
+                    bonus += clearInfo.linesCleared * (strategy.weights.line_clear_bonus || 0);
+                }
+                const heightReduction = this.calculateHeightReduction(board);
+                bonus += heightReduction * (strategy.weights.survival || 0);
+                break;
+                
+            case 'SAFETY_FIRST':
+                if (clearInfo.linesCleared > 0) {
+                    bonus += clearInfo.linesCleared * (strategy.weights.line_clear_bonus || 0);
+                }
+                if (clearInfo.linesCleared === 4) {
+                    bonus += strategy.weights.tetris_bonus || 0;
+                }
+                break;
+                
             case 'PERFECT_CLEAR':
                 if (clearInfo.isPerfectClear) {
                     bonus += strategy.weights.perfect_clear || 0;
@@ -361,22 +410,17 @@ class TetrisAI {
                 }
                 break;
                 
-            case 'TETRIS_RUSH':
-                if (clearInfo.linesCleared === 4) {
-                    bonus += strategy.weights.tetris_bonus || 0;
+            case 'BALANCED':
+                if (clearInfo.linesCleared > 0) {
+                    bonus += clearInfo.linesCleared * (strategy.weights.line_clear_bonus || 0);
                 }
-                break;
-                
-            case 'EMERGENCY':
-                const heightReduction = this.calculateHeightReduction(board);
-                bonus += heightReduction * (strategy.weights.survival || 0);
                 break;
         }
         
         return bonus;
     }
     
-    // 先読み評価（簡略版）
+    // 先読み評価（安全重視版）
     evaluateLookahead(board, nextPieces, depth) {
         if (depth >= this.lookAheadDepth || nextPieces.length === 0) {
             return 0;
@@ -385,14 +429,25 @@ class TetrisAI {
         const nextPiece = nextPieces[0];
         const remainingPieces = nextPieces.slice(1);
         
-        // 簡略化された先読み：最良手のみ評価
-        const moves = this.generateAllPossibleMoves(board, nextPiece).slice(0, 5); // 上位5手のみ
+        // 現在の高さ状況を考慮した先読み深度調整
+        const maxHeight = this.getMaxHeight(board);
+        const searchLimit = maxHeight >= 14 ? 3 : maxHeight >= 11 ? 5 : 7; // 危険時は手数を絞る
+        
+        // 先読み：安全性を重視した評価
+        const moves = this.generateAllPossibleMoves(board, nextPiece).slice(0, searchLimit);
         let bestScore = -Infinity;
         
         for (const move of moves) {
             const testBoard = this.simulateMove(board, nextPiece, move);
-            const immediateScore = this.evaluateFieldState(testBoard) * 0.5;
-            const futureScore = this.evaluateLookahead(testBoard, remainingPieces, depth + 1) * 0.7;
+            const clearInfo = this.analyzeClear(testBoard, nextPiece, move);
+            
+            // 即座のライン消去を高く評価
+            let immediateScore = this.evaluateFieldState(testBoard) * 0.6;
+            if (clearInfo.linesCleared > 0) {
+                immediateScore += clearInfo.linesCleared * 100; // ライン消去ボーナス
+            }
+            
+            const futureScore = this.evaluateLookahead(testBoard, remainingPieces, depth + 1) * 0.5;
             
             bestScore = Math.max(bestScore, immediateScore + futureScore);
         }
@@ -735,13 +790,31 @@ class TetrisAI {
     }
     
     shouldHold(board, currentPiece, heldPiece) {
-        // Cold Clearは基本的にホールドを控えめに使用
-        if (!this.gameState.efficiency || this.gameState.efficiency < 0.2) {
-            return false; // 効率が低い場合はホールドしない
+        // 実用的ホールド戦略：安全性を重視
+        const maxHeight = this.getMaxHeight(board);
+        
+        // 危険時はホールドを控える
+        if (maxHeight >= 14) {
+            return false;
         }
         
-        // Perfect Clear狙いの場合のみホールド検討
-        const totalBlocks = this.countTotalBlocks(board);
-        return totalBlocks <= 20 && currentPiece.type !== 'I' && heldPiece?.type === 'I';
+        // Iピース（テトリス用）は重要なのでホールド検討
+        if (currentPiece.type === 'I' && heldPiece?.type !== 'I') {
+            return false; // Iピースは基本的にホールドしない（テトリスに使用）
+        }
+        
+        // テトリス狙いでIピースをホールド済みの場合、必要時に使用
+        if (heldPiece?.type === 'I') {
+            const almostCompleteLines = this.countAlmostCompleteLines(board);
+            return almostCompleteLines >= 3; // テトリス狙いの時のみ
+        }
+        
+        // T-spinセットアップのためのTピースホールド
+        if (currentPiece.type === 'T' && maxHeight <= 10) {
+            const tSpinSetups = this.detectTSpinSetups(board);
+            return tSpinSetups.some(setup => setup); // T-spinセットアップがある場合
+        }
+        
+        return false; // デフォルトはホールドしない
     }
 }
