@@ -212,19 +212,24 @@ class TetrisGame {
     debugAIDecision(bestMove) {
         console.log(`==== AI決定デバッグ ====`);
         
-        // AIの思考をシミュレート
-        const simulatedBoard = this.aiEngine.simulateMove(this.board, this.currentPiece, bestMove);
-        const completedLines = simulatedBoard.getCompletedLines();
-        
-        console.log(`AI予測:`);
-        console.log(`  - 配置位置: (${bestMove.x}, ${bestMove.rotation})`);
-        console.log(`  - 予測消去ライン数: ${completedLines ? completedLines.length : 0}`);
-        console.log(`  - 予測消去ライン: [${completedLines ? completedLines.join(', ') : 'なし'}]`);
-        
-        if (completedLines && completedLines.length > 0) {
-            console.log(`  - AI予測: ${completedLines.length}ライン消去可能`);
-        } else {
-            console.log(`  - AI予測: ライン消去なし`);
+        try {
+            // AIの思考をシミュレート
+            const simulatedBoard = this.aiEngine.simulateMove(this.board, this.currentPiece, bestMove);
+            const completedLines = simulatedBoard ? simulatedBoard.getCompletedLines() : [];
+            
+            console.log(`AI予測:`);
+            console.log(`  - 配置位置: (${bestMove.x}, ${bestMove.rotation})`);
+            console.log(`  - 予測消去ライン数: ${completedLines ? completedLines.length : 0}`);
+            console.log(`  - 予測消去ライン: [${completedLines ? completedLines.join(', ') : 'なし'}]`);
+            
+            if (completedLines && completedLines.length > 0) {
+                console.log(`  - 🎉 AI予測: ${completedLines.length}ライン消去可能`);
+            } else {
+                console.log(`  - AI予測: ライン消去なし`);
+            }
+            
+        } catch (error) {
+            console.error(`AIデバッグエラー:`, error);
         }
         
         console.log(`==================`);
@@ -275,54 +280,132 @@ class TetrisGame {
         }
         
         try {
-            const originalPosition = { x: this.currentPiece.x, y: this.currentPiece.y };
-            console.log(`[移動実行] 開始位置: (${originalPosition.x}, ${originalPosition.y})`);
+            const beforeScore = this.score;
+            const beforeLines = this.lines;
+            const originalPiece = this.currentPiece.copy();
             
-            // 回転
-            console.log(`[移動実行] 回転: ${move.rotation}回`);
+            console.log(`[移動実行] AI決定を直接適用: ${originalPiece.type}ピース`);
+            
+            // AIが決定した回転を適用
             for (let r = 0; r < move.rotation; r++) {
-                const beforeRotation = this.currentPiece.rotation || 0;
-                this.rotatePiece();
-                const afterRotation = this.currentPiece.rotation || 0;
-                console.log(`[移動実行] 回転 ${r + 1}: ${beforeRotation} → ${afterRotation}`);
+                this.currentPiece.rotate();
             }
             
-            // 横移動
-            const targetX = move.x;
-            const currentX = this.currentPiece.x;
-            const moveDistance = targetX - currentX;
+            // AIが決定した位置を直接設定
+            this.currentPiece.x = move.x;
+            this.currentPiece.y = move.y || 0;
             
-            console.log(`[移動実行] 横移動: ${currentX} → ${targetX} (距離: ${moveDistance})`);
+            // 正確な落下位置を再計算
+            const finalY = this.calculateFinalDropPosition();
+            if (finalY !== null) {
+                this.currentPiece.y = finalY;
+            }
             
-            if (moveDistance !== 0) {
-                for (let i = 0; i < Math.abs(moveDistance); i++) {
-                    const beforeX = this.currentPiece.x;
-                    if (moveDistance > 0) {
-                        this.movePieceRight();
-                    } else {
-                        this.movePieceLeft();
-                    }
-                    const afterX = this.currentPiece.x;
-                    
-                    if (beforeX === afterX) {
-                        console.log(`[移動実行] 横移動制限: ${i + 1}回目で移動不可 (壁/衝突)`);
-                        break;
-                    }
+            console.log(`[移動実行] 最終位置: (${this.currentPiece.x}, ${this.currentPiece.y})`);
+            
+            // 配置可能性を確認
+            if (!this.board.isValidPosition(this.currentPiece, this.currentPiece.x, this.currentPiece.y)) {
+                console.warn(`[移動実行] 警告: 無効な位置です`);
+                return;
+            }
+            
+            // ピースをボードに配置
+            this.board.placePiece(this.currentPiece);
+            console.log(`[移動実行] ピース配置完了`);
+            
+            // ライン消去処理
+            const clearedLines = this.processLineClears();
+            
+            if (clearedLines > 0) {
+                console.log(`[移動実行] 🎉 ${clearedLines}ライン消去成功！`);
+                this.score += clearedLines * 100;
+                this.lines += clearedLines;
+                
+                // AIのゲーム状態を更新
+                if (this.aiEngine) {
+                    this.aiEngine.updateGameState(clearedLines, false, false);
                 }
             }
             
-            // 最終位置確認
-            console.log(`[移動実行] 移動後位置: (${this.currentPiece.x}, ${this.currentPiece.y})`);
+            // 次のピースを生成
+            this.spawnNewPiece();
             
-            // ハードドロップ
-            console.log(`[移動実行] ハードドロップ実行`);
-            this.hardDrop();
+            const afterScore = this.score;
+            const afterLines = this.lines;
             
-            console.log(`[移動実行] 完了`);
+            console.log(`[移動実行] 結果: スコア ${beforeScore} → ${afterScore}, ライン ${beforeLines} → ${afterLines}`);
             
         } catch (error) {
             console.error(`[移動実行] エラー:`, error.message);
             console.error(error.stack);
+        }
+    }
+    
+    // 正確な落下位置を計算
+    calculateFinalDropPosition() {
+        if (!this.currentPiece) return null;
+        
+        let dropY = this.currentPiece.y;
+        
+        // 下へ落として最終位置を見つける
+        while (dropY < this.board.height && 
+               this.board.isValidPosition(this.currentPiece, this.currentPiece.x, dropY + 1)) {
+            dropY++;
+        }
+        
+        return dropY;
+    }
+    
+    // ライン消去処理（完全修正版）
+    processLineClears() {
+        const completedLines = [];
+        
+        // 下から上へスキャンして完成ラインを検出
+        for (let y = this.board.height - 1; y >= 0; y--) {
+            let isComplete = true;
+            for (let x = 0; x < this.board.width; x++) {
+                if (this.board.grid[y][x] === 0) {
+                    isComplete = false;
+                    break;
+                }
+            }
+            
+            if (isComplete) {
+                completedLines.push(y);
+            }
+        }
+        
+        // ライン消去を実行（下から上へ）
+        for (let i = completedLines.length - 1; i >= 0; i--) {
+            const lineY = completedLines[i];
+            
+            // ライン削除
+            this.board.grid.splice(lineY, 1);
+            
+            // 上部に新しい空ラインを追加
+            this.board.grid.unshift(new Array(this.board.width).fill(0));
+        }
+        
+        return completedLines.length;
+    }
+    
+    // 新しいピースを生成
+    spawnNewPiece() {
+        if (this.nextQueue) {
+            this.currentPiece = this.nextQueue.getNext();
+        } else {
+            this.currentPiece = this.generateRandomPiece();
+        }
+        
+        if (this.currentPiece) {
+            this.currentPiece.x = Math.floor(this.board.width / 2) - 1;
+            this.currentPiece.y = 0;
+            
+            // ゲームオーバーチェック
+            if (!this.board.isValidPosition(this.currentPiece, this.currentPiece.x, this.currentPiece.y)) {
+                console.log(`[ゲーム] ゲームオーバー: 新しいピースを配置できません`);
+                this.endGame();
+            }
         }
     }
 

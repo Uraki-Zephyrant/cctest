@@ -672,106 +672,274 @@ class TetrisAI {
     
     generateAllPossibleMoves(board, piece) {
         const moves = [];
+        const maxRotations = piece.type === 'O' ? 1 : 4; // Oピースは回転不要
         
-        for (let rotation = 0; rotation < 4; rotation++) {
-            const rotatedPiece = piece.copy();
+        for (let rotation = 0; rotation < maxRotations; rotation++) {
+            const testPiece = piece.copy();
             
-            // 指定回数だけ回転
+            // 回転適用
             for (let r = 0; r < rotation; r++) {
-                rotatedPiece.rotate();
+                testPiece.rotate();
             }
             
-            // 各列での配置を試す（ピース幅を考慮した範囲）
-            const pieceWidth = rotatedPiece.shape[0] ? rotatedPiece.shape[0].length : 1;
-            
-            for (let x = 0; x <= board.width - pieceWidth; x++) {
-                rotatedPiece.x = x;
-                rotatedPiece.y = 0;
+            // 全横位置をテスト（範囲を拡張して境界ケースに対応）
+            for (let x = -2; x <= board.width + 1; x++) {
+                testPiece.x = x;
+                testPiece.y = 0;
                 
-                // 最上部から配置可能な位置を探す
-                while (rotatedPiece.y < board.height && 
-                       !board.isValidPosition(rotatedPiece, rotatedPiece.x, rotatedPiece.y)) {
-                    rotatedPiece.y++;
-                }
+                // 最上位から落下位置を計算
+                const finalY = this.calculateDropPosition(board, testPiece, x);
                 
-                // 配置位置が見つかった場合、着地点まで落下
-                if (rotatedPiece.y < board.height && board.isValidPosition(rotatedPiece, rotatedPiece.x, rotatedPiece.y)) {
-                    while (board.isValidPosition(rotatedPiece, rotatedPiece.x, rotatedPiece.y + 1)) {
-                        rotatedPiece.y++;
-                    }
+                if (finalY !== null && this.isValidFinalPosition(board, testPiece, x, finalY)) {
+                    moves.push({
+                        x: x,
+                        y: finalY,
+                        rotation: rotation,
+                        score: 0
+                    });
                     
-                    // 最終確認
-                    if (board.isValidPosition(rotatedPiece, rotatedPiece.x, rotatedPiece.y)) {
-                        moves.push({
-                            x: rotatedPiece.x,
-                            y: rotatedPiece.y,
-                            rotation: rotation,
-                            score: 0
-                        });
-                        
-                        if (this.debugLevel >= 3) {
-                            console.log(`[AI-Move] 候補: ${piece.type} x=${rotatedPiece.x} rot=${rotation} -> 着地y=${rotatedPiece.y}`);
-                        }
+                    if (this.debugLevel >= 3) {
+                        console.log(`[AI-Move] 有効候補: ${piece.type} x=${x} rot=${rotation} y=${finalY}`);
                     }
                 }
             }
         }
         
         if (this.debugLevel >= 1) {
-            console.log(`[AI] ${piece.type}ピースの可能手数: ${moves.length}`);
+            console.log(`[AI] ${piece.type}ピース: ${moves.length}手の候補生成`);
         }
+        
         return moves;
     }
     
+    // 落下位置計算（完全修正版）
+    calculateDropPosition(board, piece, x) {
+        let dropY = 0;
+        
+        // 最上位から開始して、有効な位置を探す
+        while (dropY < board.height) {
+            if (!board.isValidPosition(piece, x, dropY)) {
+                // 最初から無効な場合は配置不可能
+                if (dropY === 0) {
+                    return null;
+                }
+                // 一つ上が最終位置
+                return dropY - 1;
+            }
+            
+            // 次の位置をチェック
+            if (!board.isValidPosition(piece, x, dropY + 1)) {
+                // 次が無効なら現在位置が最終
+                return dropY;
+            }
+            
+            dropY++;
+        }
+        
+        // ボードの底まで達した場合
+        return Math.max(0, board.height - 1);
+    }
+    
+    // 最終配置位置の妥当性チェック
+    isValidFinalPosition(board, piece, x, y) {
+        // 境界チェック
+        for (let py = 0; py < piece.shape.length; py++) {
+            for (let px = 0; px < piece.shape[py].length; px++) {
+                if (piece.shape[py][px] !== 0) {
+                    const boardX = x + px;
+                    const boardY = y + py;
+                    
+                    // 範囲外チェック
+                    if (boardX < 0 || boardX >= board.width || 
+                        boardY < 0 || boardY >= board.height) {
+                        return false;
+                    }
+                    
+                    // 衝突チェック
+                    if (board.grid[boardY][boardX] !== 0) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
+    }
+    
     simulateMove(board, piece, move) {
-        const tempBoard = this.copyBoard(board);
-        const tempPiece = piece.copy();
+        try {
+            const tempBoard = this.copyBoard(board);
+            if (!tempBoard) {
+                console.error('[AI-Sim] ボードコピー失敗');
+                return board;
+            }
+            
+            const tempPiece = piece.copy();
+            
+            // 回転適用
+            for (let r = 0; r < move.rotation; r++) {
+                tempPiece.rotate();
+            }
+            
+            // 位置設定
+            tempPiece.x = move.x;
+            tempPiece.y = move.y;
+            
+            // 配置可能性を再確認
+            if (!this.isValidFinalPosition(tempBoard, tempPiece, move.x, move.y)) {
+                if (this.debugLevel >= 2) {
+                    console.warn(`[AI-Sim] 配置スキップ: ${piece.type} at (${move.x}, ${move.y})`);
+                }
+                return tempBoard; // 配置せずに返す
+            }
+            
+            // ピース配置
+            this.placePieceOnBoard(tempBoard, tempPiece);
+            
+            // ライン消去処理
+            const clearedLines = this.processLineClear(tempBoard);
+            
+            if (this.debugLevel >= 2 && clearedLines > 0) {
+                console.log(`[AI-Sim] ${clearedLines}ライン消去シミュレート完了`);
+            }
+            
+            return tempBoard;
+            
+        } catch (error) {
+            console.error('[AI-Sim] シミュレーションエラー:', error);
+            return board;
+        }
+    }
+    
+    // ピース配置処理（新規追加）
+    placePieceOnBoard(board, piece) {
+        for (let py = 0; py < piece.shape.length; py++) {
+            for (let px = 0; px < piece.shape[py].length; px++) {
+                if (piece.shape[py][px] !== 0) {
+                    const boardX = piece.x + px;
+                    const boardY = piece.y + py;
+                    
+                    if (boardX >= 0 && boardX < board.width && 
+                        boardY >= 0 && boardY < board.height) {
+                        board.grid[boardY][boardX] = 1; // ピースタイプで区別可能
+                    }
+                }
+            }
+        }
+    }
+    
+    // ライン消去処理（完全修正版）
+    processLineClear(board) {
+        const completedLines = [];
         
-        // デバッグ: シミュレーション開始
-        if (this.debugLevel >= 3) {
-            console.log(`[AI-Sim] シミュレーション開始: ${piece.type} -> (${move.x}, ${move.rotation})`);
+        // 下から上へスキャンして完成ラインを検出
+        for (let y = board.height - 1; y >= 0; y--) {
+            let isComplete = true;
+            for (let x = 0; x < board.width; x++) {
+                if (board.grid[y][x] === 0) {
+                    isComplete = false;
+                    break;
+                }
+            }
+            
+            if (isComplete) {
+                completedLines.push(y);
+            }
         }
         
-        // 回転を適用
-        for (let r = 0; r < move.rotation; r++) {
-            tempPiece.rotate();
+        // ライン消去を実行（下から上へ）
+        for (let i = completedLines.length - 1; i >= 0; i--) {
+            const lineY = completedLines[i];
+            
+            // ライン削除
+            board.grid.splice(lineY, 1);
+            
+            // 上部に新しい空ラインを追加
+            board.grid.unshift(new Array(board.width).fill(0));
         }
         
-        // 位置を設定
-        tempPiece.x = move.x;
-        tempPiece.y = move.y;
-        
-        // 配置可能性を確認
-        if (!tempBoard.isValidPosition(tempPiece, tempPiece.x, tempPiece.y)) {
-            console.warn(`[AI-Sim] 警告: 無効な配置 (${tempPiece.x}, ${tempPiece.y})`);
-        }
-        
-        // ピースを配置
-        tempBoard.placePiece(tempPiece);
-        
-        // デバッグ: 配置後の状態
-        const completedLines = tempBoard.getCompletedLines();
-        if (this.debugLevel >= 3) {
-            console.log(`[AI-Sim] 配置完了: ${completedLines ? completedLines.length : 0}ライン消去予測`);
-        }
-        
-        return tempBoard;
+        return completedLines.length;
     }
     
     copyBoard(board) {
-        // GameBoardクラスの新しいインスタンスを作成
-        const newBoard = new GameBoard(board.width, board.height);
-        
-        // グリッドデータをディープコピー
-        for (let y = 0; y < board.height; y++) {
-            newBoard.grid[y] = [...board.grid[y]];
+        if (!board || !board.grid) {
+            console.error('[AI] copyBoard: 無効なボード');
+            return null;
         }
         
-        if (this.debugLevel >= 3) {
-            console.log(`[AI-Copy] ボードコピー完了: ${board.width}x${board.height}`);
+        try {
+            // 新しいボードオブジェクトを作成
+            const newBoard = {
+                width: board.width || 10,
+                height: board.height || 20,
+                grid: []
+            };
+            
+            // グリッドを深くコピー
+            for (let y = 0; y < newBoard.height; y++) {
+                if (board.grid[y]) {
+                    newBoard.grid[y] = [...board.grid[y]];
+                } else {
+                    newBoard.grid[y] = new Array(newBoard.width).fill(0);
+                }
+            }
+            
+            // 必要なメソッドを追加
+            newBoard.getCompletedLines = function() {
+                const lines = [];
+                for (let y = 0; y < this.height; y++) {
+                    if (this.grid[y] && this.grid[y].every(cell => cell !== 0)) {
+                        lines.push(y);
+                    }
+                }
+                return lines;
+            };
+            
+            newBoard.isValidPosition = function(piece, x, y) {
+                for (let py = 0; py < piece.shape.length; py++) {
+                    for (let px = 0; px < piece.shape[py].length; px++) {
+                        if (piece.shape[py][px] !== 0) {
+                            const boardX = x + px;
+                            const boardY = y + py;
+                            
+                            if (boardX < 0 || boardX >= this.width || boardY >= this.height || 
+                                (boardY >= 0 && this.grid[boardY] && this.grid[boardY][boardX] !== 0)) {
+                                return false;
+                            }
+                        }
+                    }
+                }
+                return true;
+            };
+            
+            newBoard.placePiece = function(piece) {
+                for (let py = 0; py < piece.shape.length; py++) {
+                    for (let px = 0; px < piece.shape[py].length; px++) {
+                        if (piece.shape[py][px] !== 0) {
+                            const boardX = piece.x + px;
+                            const boardY = piece.y + py;
+                            
+                            if (boardX >= 0 && boardX < this.width && 
+                                boardY >= 0 && boardY < this.height) {
+                                if (!this.grid[boardY]) {
+                                    this.grid[boardY] = new Array(this.width).fill(0);
+                                }
+                                this.grid[boardY][boardX] = 1;
+                            }
+                        }
+                    }
+                }
+            };
+            
+            if (this.debugLevel >= 3) {
+                console.log(`[AI-Copy] ボードコピー完了: ${newBoard.width}x${newBoard.height}`);
+            }
+            
+            return newBoard;
+            
+        } catch (error) {
+            console.error('[AI] ボードコピーエラー:', error);
+            return null;
         }
-        
-        return newBoard;
     }
     
     // ゲーム状態更新
