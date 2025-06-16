@@ -28,14 +28,14 @@ class TetrisAI {
             max_well_depth: 17,
             well_column: [20, 23, 20, 50, 59, 21, 59, 10, -10, 24],
             
-            // ライン消去評価
+            // ライン消去評価（修正版：ライン消去を積極的に評価）
             move_time: -3,
             wasted_t: -152,
             b2b_clear: 104,
-            clear1: -143,        // シングル（低評価）
-            clear2: -100,        // ダブル（低評価）
-            clear3: -58,         // トリプル（低評価）
-            clear4: 390,         // テトリス（高評価）
+            clear1: 100,         // シングル（確実にライン消去）
+            clear2: 250,         // ダブル（効率的）
+            clear3: 400,         // トリプル（非常に効率的）
+            clear4: 800,         // テトリス（最高効率）
             tspin1: 121,         // T-spin Single
             tspin2: 410,         // T-spin Double
             tspin3: 602,         // T-spin Triple
@@ -626,30 +626,44 @@ class TetrisAI {
                 rotatedPiece.rotate();
             }
             
-            // 各列での配置を試す
-            for (let x = 0; x < board.width; x++) {
+            // 各列での配置を試す（ピース幅を考慮した範囲）
+            const pieceWidth = rotatedPiece.shape[0] ? rotatedPiece.shape[0].length : 1;
+            
+            for (let x = 0; x <= board.width - pieceWidth; x++) {
                 rotatedPiece.x = x;
                 rotatedPiece.y = 0;
                 
-                // 着地点まで落下
-                while (board.isValidPosition(rotatedPiece, rotatedPiece.x, rotatedPiece.y + 1)) {
+                // 最上部から配置可能な位置を探す
+                while (rotatedPiece.y < board.height && 
+                       !board.isValidPosition(rotatedPiece, rotatedPiece.x, rotatedPiece.y)) {
                     rotatedPiece.y++;
                 }
                 
-                // 配置可能なら候補に追加
-                if (board.isValidPosition(rotatedPiece, rotatedPiece.x, rotatedPiece.y)) {
-                    moves.push({
-                        x: rotatedPiece.x,
-                        y: rotatedPiece.y,
-                        rotation: rotation,
-                        score: 0
-                    });
+                // 配置位置が見つかった場合、着地点まで落下
+                if (rotatedPiece.y < board.height && board.isValidPosition(rotatedPiece, rotatedPiece.x, rotatedPiece.y)) {
+                    while (board.isValidPosition(rotatedPiece, rotatedPiece.x, rotatedPiece.y + 1)) {
+                        rotatedPiece.y++;
+                    }
+                    
+                    // 最終確認
+                    if (board.isValidPosition(rotatedPiece, rotatedPiece.x, rotatedPiece.y)) {
+                        moves.push({
+                            x: rotatedPiece.x,
+                            y: rotatedPiece.y,
+                            rotation: rotation,
+                            score: 0
+                        });
+                        
+                        if (this.debugLevel >= 3) {
+                            console.log(`[AI-Move] 候補: ${piece.type} x=${rotatedPiece.x} rot=${rotation} -> 着地y=${rotatedPiece.y}`);
+                        }
+                    }
                 }
             }
         }
         
-        if (this.debugLevel >= 2) {
-            console.log(`[AI] 可能な手の数: ${moves.length}`);
+        if (this.debugLevel >= 1) {
+            console.log(`[AI] ${piece.type}ピースの可能手数: ${moves.length}`);
         }
         return moves;
     }
@@ -690,19 +704,17 @@ class TetrisAI {
     }
     
     copyBoard(board) {
-        const newBoard = Object.create(Object.getPrototypeOf(board));
-        newBoard.width = board.width;
-        newBoard.height = board.height;
-        newBoard.grid = [];
+        // GameBoardクラスの新しいインスタンスを作成
+        const newBoard = new GameBoard(board.width, board.height);
         
+        // グリッドデータをディープコピー
         for (let y = 0; y < board.height; y++) {
             newBoard.grid[y] = [...board.grid[y]];
         }
         
-        // 必要なメソッドをコピー
-        newBoard.placePiece = board.placePiece.bind(newBoard);
-        newBoard.getCompletedLines = board.getCompletedLines.bind(newBoard);
-        newBoard.isValidPosition = board.isValidPosition.bind(newBoard);
+        if (this.debugLevel >= 3) {
+            console.log(`[AI-Copy] ボードコピー完了: ${board.width}x${board.height}`);
+        }
         
         return newBoard;
     }

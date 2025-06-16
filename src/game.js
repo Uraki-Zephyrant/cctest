@@ -275,10 +275,16 @@ class TetrisGame {
         }
         
         try {
+            const originalPosition = { x: this.currentPiece.x, y: this.currentPiece.y };
+            console.log(`[移動実行] 開始位置: (${originalPosition.x}, ${originalPosition.y})`);
+            
             // 回転
             console.log(`[移動実行] 回転: ${move.rotation}回`);
             for (let r = 0; r < move.rotation; r++) {
+                const beforeRotation = this.currentPiece.rotation || 0;
                 this.rotatePiece();
+                const afterRotation = this.currentPiece.rotation || 0;
+                console.log(`[移動実行] 回転 ${r + 1}: ${beforeRotation} → ${afterRotation}`);
             }
             
             // 横移動
@@ -286,22 +292,37 @@ class TetrisGame {
             const currentX = this.currentPiece.x;
             const moveDistance = targetX - currentX;
             
-            console.log(`[移動実行] 横移動: ${currentX} → ${targetX} (${moveDistance})`);
-            for (let i = 0; i < Math.abs(moveDistance); i++) {
-                if (moveDistance > 0) {
-                    this.movePieceRight();
-                } else {
-                    this.movePieceLeft();
+            console.log(`[移動実行] 横移動: ${currentX} → ${targetX} (距離: ${moveDistance})`);
+            
+            if (moveDistance !== 0) {
+                for (let i = 0; i < Math.abs(moveDistance); i++) {
+                    const beforeX = this.currentPiece.x;
+                    if (moveDistance > 0) {
+                        this.movePieceRight();
+                    } else {
+                        this.movePieceLeft();
+                    }
+                    const afterX = this.currentPiece.x;
+                    
+                    if (beforeX === afterX) {
+                        console.log(`[移動実行] 横移動制限: ${i + 1}回目で移動不可 (壁/衝突)`);
+                        break;
+                    }
                 }
             }
+            
+            // 最終位置確認
+            console.log(`[移動実行] 移動後位置: (${this.currentPiece.x}, ${this.currentPiece.y})`);
             
             // ハードドロップ
             console.log(`[移動実行] ハードドロップ実行`);
             this.hardDrop();
             
             console.log(`[移動実行] 完了`);
+            
         } catch (error) {
             console.error(`[移動実行] エラー:`, error.message);
+            console.error(error.stack);
         }
     }
 
@@ -551,8 +572,16 @@ class TetrisGame {
                     break;
                 case 'clear':
                     // 実際にラインを消去してアフター状態を保存
+                    const linesBeforeClear = this.lineAnimation.lines.slice();
+                    console.log(`[ライン消去] 消去実行: ${linesBeforeClear.length}ライン [${linesBeforeClear.join(', ')}]`);
+                    
                     this.clearLines(this.lineAnimation.lines.length);
                     this.board.clearLines(this.lineAnimation.lines);
+                    
+                    // 消去後の確認
+                    const linesAfterClear = this.board.getCompletedLines();
+                    console.log(`[ライン消去] 消去完了後の残存完成ライン: ${linesAfterClear.length}個`);
+                    
                     this.lineAnimation.dropAnimation.afterBoard = this.copyBoardState();
                     this.lineAnimation.timer = 0; // dropステージ用にリセット
                     this.lineAnimation.stage = 'drop';
